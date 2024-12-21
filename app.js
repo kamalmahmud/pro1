@@ -156,10 +156,32 @@ function initFarmersSection() {
 function addOrUpdateFarmer() {
   const farmerId = document.getElementById("farmerId").value.trim();
   const name = document.getElementById("farmerName").value.trim();
-  const contact = document.getElementById("farmerContact").value.trim();
-  const location = document.getElementById("farmerLocation").value.trim();
+  const phone = document.getElementById("farmerPhone").value.trim();
+  const email = document.getElementById("farmerEmail").value.trim();
+  const address = document.getElementById("farmerAddress").value.trim();
+  const region = document.getElementById("farmerRegion").value.trim();
+  const gps = document.getElementById("farmerGPS").value.trim();
 
-  if (!farmerId || !name || !contact || !location) return;
+  if (!farmerId || !name || !phone || !email || !address || !region || !gps) {
+    alert(
+      "All fields (ID, Name, Phone, Email, Address, Region, GPS) are required!"
+    );
+    return;
+  }
+
+  // Simple phone pattern (7-15 digits, optional + or -)
+  const phonePattern = /^[0-9+\-]{7,15}$/;
+  if (!phonePattern.test(phone)) {
+    alert("Phone format is invalid. Example: +123-456789, 1234567, etc.");
+    return;
+  }
+
+  // Simple email pattern
+  const emailPattern = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  if (!emailPattern.test(email)) {
+    alert("Please enter a valid email address. Example: name@example.com");
+    return;
+  }
 
   const existing = farmers.find((f) => f.farmerId === farmerId);
 
@@ -172,27 +194,40 @@ function addOrUpdateFarmer() {
     if (confirmUpdate) {
       // Proceed with update
       existing.name = name;
-      existing.contact = contact;
-      existing.location = location;
-      alert(`Farmer ID '${farmerId}' has been updated.`);
+      existing.phone = phone;
+      existing.email = email;
+      existing.address = address;
+      existing.region = region;
+      existing.gps = gps;
+      alert(`Farmer '${farmerId}' was updated successfully.`);
     } else {
       // User canceled; do nothing
       return;
     }
   } else {
     // ID does not exist; proceed to add new farmer
-    farmers.push({ farmerId, name, contact, location });
-    alert(`New Farmer with ID '${farmerId}' added successfully.`);
+    farmers.push({
+      farmerId,
+      name,
+      phone,
+      email,
+      address,
+      region,
+      gps,
+    });
+    alert(`New Farmer '${farmerId}' added successfully.`);
   }
 
   document.getElementById("farmerForm").reset();
-  saveFarmers();
+  saveFarmers(); // If you’re using localStorage
   renderFarmersTable();
   populateFarmerDropdown();
 }
 
 function renderFarmersTable() {
   const tbody = document.querySelector("#farmersTable tbody");
+  if (!tbody) return;
+
   tbody.innerHTML = "";
 
   const searchVal = document
@@ -200,10 +235,11 @@ function renderFarmersTable() {
     .value.trim()
     .toLowerCase();
 
+  // Filter by name, region, or ID
   const filtered = farmers.filter((f) => {
     return (
       f.name.toLowerCase().includes(searchVal) ||
-      f.location.toLowerCase().includes(searchVal) ||
+      f.region.toLowerCase().includes(searchVal) ||
       f.farmerId.toLowerCase().includes(searchVal)
     );
   });
@@ -213,8 +249,11 @@ function renderFarmersTable() {
     tr.innerHTML = `
       <td>${farmer.farmerId}</td>
       <td>${farmer.name}</td>
-      <td>${farmer.contact}</td>
-      <td>${farmer.location}</td>
+      <td>${farmer.phone}</td>
+      <td>${farmer.email}</td>
+      <td>${farmer.address}</td>
+      <td>${farmer.region}</td>
+      <td>${farmer.gps}</td>
       <td>
         <button onclick="editFarmer('${farmer.farmerId}')">Edit</button>
         <button onclick="deleteFarmer('${farmer.farmerId}')">Delete</button>
@@ -227,10 +266,14 @@ function renderFarmersTable() {
 function editFarmer(farmerId) {
   const f = farmers.find((f) => f.farmerId === farmerId);
   if (!f) return;
+
   document.getElementById("farmerId").value = f.farmerId;
   document.getElementById("farmerName").value = f.name;
-  document.getElementById("farmerContact").value = f.contact;
-  document.getElementById("farmerLocation").value = f.location;
+  document.getElementById("farmerPhone").value = f.phone;
+  document.getElementById("farmerEmail").value = f.email;
+  document.getElementById("farmerAddress").value = f.address;
+  document.getElementById("farmerRegion").value = f.region;
+  document.getElementById("farmerGPS").value = f.gps;
 }
 
 function deleteFarmer(farmerId) {
@@ -241,7 +284,15 @@ function deleteFarmer(farmerId) {
 }
 
 function exportFarmersAsCsv() {
-  const headers = ["farmerId", "name", "contact", "location"];
+  const headers = [
+    "farmerId",
+    "name",
+    "phone",
+    "email",
+    "address",
+    "region",
+    "gps",
+  ];
   const csvString = generateCSVStringFromArrayOfObjects(farmers, headers);
   downloadCSV("farmers.csv", csvString);
 }
