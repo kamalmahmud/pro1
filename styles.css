@@ -1,0 +1,108 @@
+/* Basic styling for layout, forms, and tables */
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f9f9f9;
+}
+
+header {
+  background: #2c3e50;
+  color: #fff;
+  padding: 1rem;
+}
+
+h1 {
+  margin: 0;
+}
+
+nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 1rem;
+}
+
+nav a {
+  color: #fff;
+  text-decoration: none;
+}
+
+.module-section {
+  padding: 1rem;
+  margin-bottom: 2rem;
+  background: #fff;
+  border-bottom: 1px solid #ccc;
+}
+
+.sub-module {
+  margin-top: 1rem;
+  background: #fafafa;
+  padding: 1rem;
+  border: 1px solid #eee;
+  margin-bottom: 1rem;
+}
+
+label {
+  margin-right: 0.5rem;
+}
+
+form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+form input,
+form select {
+  padding: 0.3rem;
+  font-size: 1rem;
+}
+
+form button {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+table th,
+table td {
+  border: 1px solid #ccc;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.search-filter {
+  margin-bottom: 1rem;
+}
+
+#reportOutput {
+  margin-top: 1rem;
+  background: #eef;
+  padding: 1rem;
+  border: 1px solid #ccd;
+  min-height: 100px;
+}
+
+footer {
+  background: #2c3e50;
+  color: #fff;
+  padding: 0.5rem;
+  text-align: center;
+}
+
+/* Simple show/hide for modules based on hash navigation */
+.module-section {
+  display: none;
+}
+
+.module-section:target {
+  display: block;
+}

@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Blueberry Factory Management System</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <h1>Blueberry Factory Management System</h1>
+      <!-- Main navigation -->
+      <nav>
+        <ul>
+          <li><a href="#supplier-management">Supplier Management</a></li>
+          <li><a href="#product-categorization">Product Categorization</a></li>
+          <li><a href="#sales-management">Sales Management</a></li>
+          <li><a href="#financial-analysis">Financial Analysis</a></li>
+          <li><a href="#inventory-management">Inventory Management</a></li>
+          <li><a href="#reports">Comprehensive Reports</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <!-- =========================  SUPPLIER MANAGEMENT MODULE  ========================= -->
+    <section id="supplier-management" class="module-section">
+      <h2>1. Supplier Management Module</h2>
+      <p>
+        Manage Farmers' Information, Purchase Records, and Expense Calculations
+      </p>
+
+      <!-- 1.1 Farmers' Information -->
+      <div class="sub-module">
+        <h3>Farmers' Information</h3>
+        <form id="farmerForm">
+          <label for="farmerId">Farmer ID:</label>
+          <input type="text" id="farmerId" required />
+
+          <label for="farmerName">Name:</label>
+          <input type="text" id="farmerName" required />
+
+          <label for="farmerContact">Contact:</label>
+          <input type="text" id="farmerContact" required />
+
+          <label for="farmerLocation">Location:</label>
+          <input type="text" id="farmerLocation" required />
+
+          <button type="submit">Add/Update Farmer</button>
+        </form>
+
+        <!-- Search/Filter Farmers -->
+        <div class="search-filter">
+          <label for="farmerSearch">Search Farmer:</label>
+          <input
+            type="text"
+            id="farmerSearch"
+            placeholder="By name or location..."
+          />
+        </div>
+
+        <!-- Farmers Table -->
+        <table id="farmersTable">
+          <thead>
+            <tr>
+              <th>Farmer ID</th>
+              <th>Name</th>
+              <th>Contact</th>
+              <th>Location</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Dynamically filled by JS -->
+          </tbody>
+        </table>
+
+        <!-- Export Farmers CSV -->
+        <button id="exportFarmersCsv">Export Farmers as CSV</button>
+      </div>
+
+      <!-- 1.2 Purchase Records -->
+      <div class="sub-module">
+        <h3>Purchase Records</h3>
+        <form id="purchaseForm">
+          <label for="purchaseId">Purchase ID:</label>
+          <input type="text" id="purchaseId" required />
+
+          <label for="purchaseFarmerId">Farmer ID:</label>
+          <select id="purchaseFarmerId">
+            <!-- Filled by JS with farmer IDs -->
+          </select>
+
+          <label for="purchaseDate">Date:</label>
+          <input type="date" id="purchaseDate" required />
+
+          <label for="purchaseQuantity">Quantity (kg):</label>
+          <input type="number" step="0.01" id="purchaseQuantity" required />
+
+          <label for="purchasePrice">Price per kg:</label>
+          <input type="number" step="0.01" id="purchasePrice" required />
+
+          <button type="submit">Add Purchase</button>
+        </form>
+
+        <table id="purchasesTable">
+          <thead>
+            <tr>
+              <th>Purchase ID</th>
+              <th>Farmer ID</th>
+              <th>Date</th>
+              <th>Quantity (kg)</th>
+              <th>Price/kg</th>
+              <th>Total Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Filled by JS -->
+          </tbody>
+        </table>
+
+        <!-- Export Purchase Records CSV -->
+        <button id="exportPurchasesCsv">Export Purchases as CSV</button>
+      </div>
+
+      <!-- 1.3 Expense Calculation -->
+      <div class="sub-module">
+        <h3>Expense Calculation</h3>
+        <div>
+          <label for="expenseStartDate">Start Date:</label>
+          <input type="date" id="expenseStartDate" />
+          <label for="expenseEndDate">End Date:</label>
+          <input type="date" id="expenseEndDate" />
+          <button id="calculateExpenseBtn">Calculate Total Expense</button>
+        </div>
+        <p>
+          Total Expense for selected period:
+          <span id="totalExpenseDisplay">0</span>
+        </p>
+      </div>
+    </section>
+
+    <!-- =========================  PRODUCT CATEGORIZATION MODULE  ========================= -->
+    <section id="product-categorization" class="module-section">
+      <h2>2. Product Categorization and Packaging Module</h2>
+      <p>
+        Manage product categories, pricing, and inventory tracking for packaged
+        blueberries.
+      </p>
+
+      <!-- 2.1 Product Categories -->
+      <div class="sub-module">
+        <h3>Defined Categories</h3>
+        <ul>
+          <li>Small (100g)</li>
+          <li>Medium (250g)</li>
+          <li>Large (500g)</li>
+          <li>Extra Large (1kg)</li>
+          <li>Family Pack (2kg)</li>
+          <li>Bulk Pack (5kg)</li>
+          <li>Premium (custom weight)</li>
+        </ul>
+      </div>
+
+      <!-- 2.2 Pricing Structure -->
+      <div class="sub-module">
+        <h3>Pricing Structure</h3>
+        <form id="pricingForm">
+          <label for="categorySelect">Category:</label>
+          <select id="categorySelect">
+            <!-- JS will populate these categories -->
+          </select>
+
+          <label for="categoryPrice">Price for this category ($):</label>
+          <input type="number" step="0.01" id="categoryPrice" required />
+
+          <button type="submit">Set/Update Price</button>
+        </form>
+
+        <table id="pricingTable">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Weight Info</th>
+              <th>Price ($)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 2.3 Inventory Tracking for Packaged Products -->
+      <div class="sub-module">
+        <h3>Package Blueberries Into Categories</h3>
+        <form id="packageForm">
+          <label for="packageCategorySelect">Select Category:</label>
+          <select id="packageCategorySelect">
+            <!-- same categories as above -->
+          </select>
+
+          <label for="packageQuantity">Quantity to Package (in kg):</label>
+          <input type="number" step="0.01" id="packageQuantity" required />
+
+          <button type="submit">Package</button>
+        </form>
+        <p>
+          Note: This will reduce your raw blueberry stock if you track it
+          separately, or simply reflect that you’ve allocated some bulk to
+          packaged inventory.
+        </p>
+
+        <h4>Packaged Inventory by Category</h4>
+        <table id="packagedInventoryTable">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Stock (units)</th>
+              <th>Equivalent Weight (kg)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Updated by JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- =========================  SALES MANAGEMENT MODULE  ========================= -->
+    <section id="sales-management" class="module-section">
+      <h2>3. Sales Management Module</h2>
+      <p>Log customer orders, calculate revenue, and track sales reports.</p>
+
+      <!-- 3.1 Order Management -->
+      <div class="sub-module">
+        <h3>Order Management</h3>
+        <form id="orderForm">
+          <label for="orderId">Order ID:</label>
+          <input type="text" id="orderId" required />
+
+          <label for="customerName">Customer Name:</label>
+          <input type="text" id="customerName" required />
+
+          <label for="customerContact">Customer Contact:</label>
+          <input type="text" id="customerContact" required />
+
+          <label for="orderCategory">Product Category:</label>
+          <select id="orderCategory">
+            <!-- same categories from pricing -->
+          </select>
+
+          <label for="orderQuantity">Quantity (units):</label>
+          <input type="number" id="orderQuantity" required />
+
+          <button type="submit">Place/Update Order</button>
+        </form>
+
+        <table id="ordersTable">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Customer</th>
+              <th>Contact</th>
+              <th>Category</th>
+              <th>Quantity (units)</th>
+              <th>Total Price ($)</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Updated by JS -->
+          </tbody>
+        </table>
+
+        <!-- Order Status Update -->
+        <div>
+          <label for="orderStatusFilter">Filter by Order Status:</label>
+          <select id="orderStatusFilter">
+            <option value="">All</option>
+            <option value="Pending">Pending</option>
+            <option value="Processed">Processed</option>
+            <option value="Shipped">Shipped</option>
+            <option value="Delivered">Delivered</option>
+          </select>
+        </div>
+        <button id="exportOrdersCsv">Export Orders as CSV</button>
+      </div>
+
+      <!-- 3.2 Revenue Calculation -->
+      <div class="sub-module">
+        <h3>Revenue Calculation</h3>
+        <p>
+          Total Revenue (All Orders): $<span id="totalRevenueDisplay"
+            >0.00</span
+          >
+        </p>
+        <button id="recalcRevenueBtn">Recalculate Revenue</button>
+
+        <h4>Revenue by Category</h4>
+        <table id="revenueByCategoryTable">
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Revenue ($)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Updated by JS -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- =========================  FINANCIAL ANALYSIS MODULE  ========================= -->
+    <section id="financial-analysis" class="module-section">
+      <h2>4. Financial Analysis Module</h2>
+      <p>Calculate overall income, expenses, tax, and net profit.</p>
+
+      <div class="sub-module">
+        <h3>Period Selection for Financial Analysis</h3>
+        <label for="finStart">Start Date:</label>
+        <input type="date" id="finStart" />
+        <label for="finEnd">End Date:</label>
+        <input type="date" id="finEnd" />
+
+        <label for="taxRate">Tax Rate (%):</label>
+        <input type="number" step="0.01" id="taxRate" value="10" />
+        <button id="analyzeFinBtn">Analyze Financials</button>
+      </div>
+
+      <div class="sub-module">
+        <p>Income (Sales): $<span id="finIncomeDisplay">0.00</span></p>
+        <p>Expenses (Purchases): $<span id="finExpenseDisplay">0.00</span></p>
+        <p>Tax Amount: $<span id="finTaxDisplay">0.00</span></p>
+        <p>Net Profit: $<span id="finProfitDisplay">0.00</span></p>
+      </div>
+    </section>
+
+    <!-- =========================  INVENTORY MANAGEMENT MODULE  ========================= -->
+    <section id="inventory-management" class="module-section">
+      <h2>5. Inventory Management Module</h2>
+      <p>
+        Monitor and manage stock levels across different blueberry categories
+        (e.g., Fresh, Frozen, Organic).
+      </p>
+
+      <form id="inventoryForm">
+        <label for="invItemId">Item ID:</label>
+        <input type="text" id="invItemId" required />
+
+        <label for="invCategory"
+          >Category (Fresh, Frozen, Organic, etc.):</label
+        >
+        <input type="text" id="invCategory" required />
+
+        <label for="invQuantity">Quantity Available (kg):</label>
+        <input type="number" step="0.01" id="invQuantity" required />
+
+        <label for="invReorderLevel">Reorder Level (kg):</label>
+        <input type="number" step="0.01" id="invReorderLevel" required />
+
+        <label for="invRestockDate">Restock Date (planned or actual):</label>
+        <input type="date" id="invRestockDate" />
+
+        <label for="invStorageLocation">Storage Location:</label>
+        <input type="text" id="invStorageLocation" />
+
+        <button type="submit">Add/Update Inventory Item</button>
+      </form>
+
+      <table id="inventoryTable">
+        <thead>
+          <tr>
+            <th>Item ID</th>
+            <th>Category</th>
+            <th>Quantity (kg)</th>
+            <th>Reorder Level (kg)</th>
+            <th>Restock Date</th>
+            <th>Storage Location</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Filled by JS -->
+        </tbody>
+      </table>
+      <button id="exportInventoryCsv">Export Inventory as CSV</button>
+
+      <!-- Alerts Section -->
+      <h3>Low-Stock Alerts</h3>
+      <ul id="lowStockAlerts">
+        <!-- Populated by JS -->
+      </ul>
+    </section>
+
+    <!-- =========================  COMPREHENSIVE REPORT GENERATION MODULE  ========================= -->
+    <section id="reports" class="module-section">
+      <h2>6. Comprehensive Report Generation Module</h2>
+      <p>
+        Generate an end-of-period report with income, expenses, tax, net profit,
+        products sold, and remaining stock.
+      </p>
+
+      <div>
+        <label for="reportStartDate">Start Date:</label>
+        <input type="date" id="reportStartDate" />
+
+        <label for="reportEndDate">End Date:</label>
+        <input type="date" id="reportEndDate" />
+
+        <button id="generateReportBtn">Generate Comprehensive Report</button>
+      </div>
+
+      <div id="reportOutput">
+        <!-- Populated by JS with:
+           - Total income from sales
+           - Total expenses
+           - Tax applied
+           - Net profit
+           - Products sold per category
+           - Remaining stock per category
+      --></div>
+
+      <!-- CSV Export for the comprehensive report -->
+      <button id="exportComprehensiveCsv">
+        Export Comprehensive Report as CSV
+      </button>
+    </section>
+
+    <footer>
+      <p>&copy; 2024 Blueberry Factory Management</p>
+    </footer>
+  </body>
+</html>
