@@ -202,13 +202,21 @@
         <form id="pricingForm">
           <label for="categorySelect">Category:</label>
           <select id="categorySelect">
-            <!-- JS will populate these categories -->
+            <!-- Populated by JS (Small, Medium, Large, etc.) -->
           </select>
 
-          <label for="categoryPrice">Price for this category ($):</label>
+          <label for="categoryWeight">Weight (e.g., 0.1 kg or custom):</label>
+          <input
+            type="text"
+            id="categoryWeight"
+            placeholder="0.1 kg, 0.25 kg, Varies..."
+            required
+          />
+
+          <label for="categoryPrice">Price ($):</label>
           <input type="number" step="0.01" id="categoryPrice" required />
 
-          <button type="submit">Set/Update Price</button>
+          <button type="submit">Set/Update Category</button>
         </form>
 
         <table id="pricingTable">

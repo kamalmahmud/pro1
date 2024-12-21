@@ -446,17 +446,29 @@ function initPricingSection() {
 
 function updateCategoryPrice() {
   const category = document.getElementById("categorySelect").value;
+  const newWeight = document.getElementById("categoryWeight").value.trim();
   const newPrice = parseFloat(document.getElementById("categoryPrice").value);
-  if (!category || isNaN(newPrice)) return;
-
-  const catObj = categoryPricing.find((c) => c.category === category);
-  if (catObj) {
-    catObj.price = newPrice;
+  if (!category || !newWeight || isNaN(newPrice)) {
+    alert(
+      "Please select a category, provide a weight, and enter a valid price."
+    );
+    return;
   }
 
-  saveCategoryPricing();
+  const catObj = categoryPricing.find((c) => c.category === category);
+  if (!catObj) {
+    alert("Category not found. Cannot update.");
+    return;
+  }
+
+  catObj.weightInfo = newWeight; // e.g., "0.1 kg" or "Varies"
+  catObj.price = newPrice;
+
+  saveCategoryPricing(); // If you're using localStorage
   renderPricingTable();
+
   document.getElementById("pricingForm").reset();
+  alert(`Category "${category}" updated!`);
 }
 
 function renderPricingTable() {
@@ -521,23 +533,29 @@ function packageBlueberries() {
   const quantityKg = parseFloat(
     document.getElementById("packageQuantity").value
   );
-  if (!catSelect || isNaN(quantityKg) || quantityKg <= 0) return;
 
   const catObj = categoryPricing.find((c) => c.category === catSelect);
   const invObj = packagedInventory.find((i) => i.category === catSelect);
 
   if (catObj && invObj) {
+    // parse catObj.weightInfo if it's numeric
     let weight = parseFloat(catObj.weightInfo);
+
     if (isNaN(weight)) {
-      // Premium (custom) - assume 1 unit = entire input
-      weight = quantityKg;
+      // If user typed something like "Varies" or something non-numeric,
+      // we must decide how many units we can form.
+      // For example, we might treat the entire input as 1 "unit."
+      // Or you could prompt the user for a numeric value.
+      weight = quantityKg; // Or do something else sensible
     }
+
+    // number of whole "units" from the input quantity
     const unitsToAdd = Math.floor(quantityKg / weight);
     invObj.units += unitsToAdd;
     invObj.totalKg += unitsToAdd * weight;
   }
 
-  document.getElementById("packageForm").reset();
+  // save and re-render
   savePackagedInventory();
   renderPackagedInventory();
 }
