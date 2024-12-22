@@ -2,120 +2,86 @@
  *     GLOBAL DATA STRUCTURES
  ****************************************/
 
-// We'll store these in localStorage. But first, define default arrays if localStorage is empty.
+// Data Arrays
 let farmers = [];
 let purchases = [];
 let orders = [];
 let inventoryItems = [];
 let categoryPricing = []; // Pricing for product categories
-let packagedInventory = []; // how many units exist for each packaged category
+let packagedInventory = []; // Packaged inventory details
+
+// Report Data
+let lastGeneratedReport = []; // Stores the last generated report for CSV export
 
 /****************************************
  *   LOAD/SAVE from LOCAL STORAGE
  ****************************************/
 function loadDataFromLocalStorage() {
-  const farmersStr = localStorage.getItem("farmers");
-  if (farmersStr) farmers = JSON.parse(farmersStr);
+  farmers = JSON.parse(localStorage.getItem("farmers")) || [];
+  purchases = JSON.parse(localStorage.getItem("purchases")) || [];
+  orders = JSON.parse(localStorage.getItem("orders")) || [];
+  inventoryItems = JSON.parse(localStorage.getItem("inventoryItems")) || [];
+  categoryPricing = JSON.parse(localStorage.getItem("categoryPricing")) || [
+    { category: "Small (100g)", weightInfo: "0.1 kg", price: 5 },
+    { category: "Medium (250g)", weightInfo: "0.25 kg", price: 10 },
+    { category: "Large (500g)", weightInfo: "0.5 kg", price: 18 },
+    { category: "Extra Large (1kg)", weightInfo: "1.0 kg", price: 30 },
+    { category: "Family Pack (2kg)", weightInfo: "2.0 kg", price: 55 },
+    { category: "Bulk Pack (5kg)", weightInfo: "5.0 kg", price: 120 },
+    { category: "Premium (custom)", weightInfo: "Varies", price: 0 },
+  ];
 
-  const purchasesStr = localStorage.getItem("purchases");
-  if (purchasesStr) purchases = JSON.parse(purchasesStr);
-
-  const ordersStr = localStorage.getItem("orders");
-  if (ordersStr) orders = JSON.parse(ordersStr);
-
-  const inventoryStr = localStorage.getItem("inventoryItems");
-  if (inventoryStr) inventoryItems = JSON.parse(inventoryStr);
-
-  const categoryPricingStr = localStorage.getItem("categoryPricing");
-  if (categoryPricingStr) {
-    categoryPricing = JSON.parse(categoryPricingStr);
-  } else {
-    // If not in storage, load default
-    categoryPricing = [
-      { category: "Small (100g)", weightInfo: "0.1 kg", price: 5 },
-      { category: "Medium (250g)", weightInfo: "0.25 kg", price: 10 },
-      { category: "Large (500g)", weightInfo: "0.5 kg", price: 18 },
-      { category: "Extra Large (1kg)", weightInfo: "1.0 kg", price: 30 },
-      { category: "Family Pack (2kg)", weightInfo: "2.0 kg", price: 55 },
-      { category: "Bulk Pack (5kg)", weightInfo: "5.0 kg", price: 120 },
-      { category: "Premium (custom)", weightInfo: "Varies", price: 0 },
-    ];
-  }
-
-  const packagedInvStr = localStorage.getItem("packagedInventory");
-  if (packagedInvStr) {
-    packagedInventory = JSON.parse(packagedInvStr);
-  } else {
-    // Initialize with default zero inventory if not stored
-    packagedInventory = categoryPricing.map((cat) => ({
+  packagedInventory =
+    JSON.parse(localStorage.getItem("packagedInventory")) ||
+    categoryPricing.map((cat) => ({
       category: cat.category,
       units: 0,
       totalKg: 0,
     }));
-  }
+}
+
+function saveToLocalStorage(key, data) {
+  localStorage.setItem(key, JSON.stringify(data));
 }
 
 function saveFarmers() {
-  localStorage.setItem("farmers", JSON.stringify(farmers));
+  saveToLocalStorage("farmers", farmers);
 }
 
 function savePurchases() {
-  localStorage.setItem("purchases", JSON.stringify(purchases));
+  saveToLocalStorage("purchases", purchases);
 }
 
 function saveOrders() {
-  localStorage.setItem("orders", JSON.stringify(orders));
+  saveToLocalStorage("orders", orders);
 }
 
 function saveInventoryItems() {
-  localStorage.setItem("inventoryItems", JSON.stringify(inventoryItems));
+  saveToLocalStorage("inventoryItems", inventoryItems);
 }
 
 function saveCategoryPricing() {
-  localStorage.setItem("categoryPricing", JSON.stringify(categoryPricing));
+  saveToLocalStorage("categoryPricing", categoryPricing);
 }
 
 function savePackagedInventory() {
-  localStorage.setItem("packagedInventory", JSON.stringify(packagedInventory));
+  saveToLocalStorage("packagedInventory", packagedInventory);
 }
 
 /****************************************
- *   EVENT: DOMContentLoaded
- ****************************************/
-window.addEventListener("DOMContentLoaded", () => {
-  // 1. Load data from localStorage
-  loadDataFromLocalStorage();
-
-  // 2. Initialize the UI sections
-  initFarmersSection();
-  initPurchasesSection();
-  initExpenseCalculation();
-  initPricingSection();
-  initPackagingSection();
-  initOrderSection();
-  initRevenueSection();
-  initFinancialAnalysis();
-  initInventoryManagement();
-  initComprehensiveReport();
-
-  // Render everything once
-  renderFarmersTable();
-  renderPurchasesTable();
-  renderOrdersTable();
-  renderInventoryTable();
-  renderPricingTable();
-  renderPackagedInventory();
-  recalcTotalRevenue();
-});
-
-/****************************************
- *  HELPER: Generate & Download CSV
+ *  HELPER FUNCTIONS
  ****************************************/
 function generateCSVStringFromArrayOfObjects(dataArray, headers) {
   let csvContent = headers.join(",") + "\n";
   dataArray.forEach((obj) => {
     let row = headers
-      .map((h) => (obj[h] !== undefined ? obj[h] : ""))
+      .map((h) => {
+        let cell = obj[h];
+        if (typeof cell === "string" && cell.includes(",")) {
+          cell = `"${cell}"`; // Handle commas in data
+        }
+        return cell !== undefined ? cell : "";
+      })
       .join(",");
     csvContent += row + "\n";
   });
@@ -134,23 +100,31 @@ function downloadCSV(filename, csvContent) {
   document.body.removeChild(link);
 }
 
+function generateUniqueId(prefix) {
+  return prefix + Math.random().toString(36).substr(2, 9).toUpperCase();
+}
+
 /****************************************
  *  SUPPLIER MANAGEMENT
  ****************************************/
 function initFarmersSection() {
   const farmerForm = document.getElementById("farmerForm");
-  farmerForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    addOrUpdateFarmer();
-  });
+  if (farmerForm) {
+    farmerForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      addOrUpdateFarmer();
+    });
+  }
 
-  document
-    .getElementById("farmerSearch")
-    .addEventListener("input", renderFarmersTable);
+  const farmerSearch = document.getElementById("farmerSearch");
+  if (farmerSearch) {
+    farmerSearch.addEventListener("input", renderFarmersTable);
+  }
 
-  document
-    .getElementById("exportFarmersCsv")
-    .addEventListener("click", exportFarmersAsCsv);
+  const exportBtn = document.getElementById("exportFarmersCsv");
+  if (exportBtn) {
+    exportBtn.addEventListener("click", exportFarmersAsCsv);
+  }
 }
 
 function addOrUpdateFarmer() {
@@ -169,59 +143,40 @@ function addOrUpdateFarmer() {
     return;
   }
 
-  // Simple phone pattern (7-15 digits, optional + or -)
+  // Simple validation patterns
   const phonePattern = /^[0-9+\-]{7,15}$/;
   if (!phonePattern.test(phone)) {
-    alert("Phone format is invalid. Example: +123-456789, 1234567, etc.");
+    alert("Invalid phone format.");
     return;
   }
 
-  // Simple email pattern
   const emailPattern = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
   if (!emailPattern.test(email)) {
-    alert("Please enter a valid email address. Example: name@example.com");
+    alert("Invalid email address.");
     return;
   }
 
   const existing = farmers.find((f) => f.farmerId === farmerId);
 
   if (existing) {
-    // Prompt user for confirmation
-    const confirmUpdate = confirm(
-      `Farmer ID '${farmerId}' already exists.\n` +
-        `Do you want to update this farmer's information?`
-    );
-    if (confirmUpdate) {
-      // Proceed with update
-      existing.name = name;
-      existing.phone = phone;
-      existing.email = email;
-      existing.address = address;
-      existing.region = region;
-      existing.gps = gps;
-      alert(`Farmer '${farmerId}' was updated successfully.`);
+    if (
+      confirm(
+        `Farmer ID '${farmerId}' exists. Do you want to update this farmer's information?`
+      )
+    ) {
+      Object.assign(existing, { name, phone, email, address, region, gps });
+      alert(`Farmer '${farmerId}' updated successfully.`);
     } else {
-      // User canceled; do nothing
       return;
     }
   } else {
-    // ID does not exist; proceed to add new farmer
-    farmers.push({
-      farmerId,
-      name,
-      phone,
-      email,
-      address,
-      region,
-      gps,
-    });
+    farmers.push({ farmerId, name, phone, email, address, region, gps });
     alert(`New Farmer '${farmerId}' added successfully.`);
   }
 
   document.getElementById("farmerForm").reset();
-  saveFarmers(); // If you’re using localStorage
+  saveFarmers();
   renderFarmersTable();
-  populateFarmerDropdown();
 }
 
 function renderFarmersTable() {
@@ -235,7 +190,6 @@ function renderFarmersTable() {
     .value.trim()
     .toLowerCase();
 
-  // Filter by name, region, or ID
   const filtered = farmers.filter((f) => {
     return (
       f.name.toLowerCase().includes(searchVal) ||
@@ -261,26 +215,28 @@ function renderFarmersTable() {
     `;
     tbody.appendChild(tr);
   });
+
+  populateFarmerDropdown();
 }
 
 function editFarmer(farmerId) {
-  const f = farmers.find((f) => f.farmerId === farmerId);
-  if (!f) return;
+  const farmer = farmers.find((f) => f.farmerId === farmerId);
+  if (!farmer) return;
 
-  document.getElementById("farmerId").value = f.farmerId;
-  document.getElementById("farmerName").value = f.name;
-  document.getElementById("farmerPhone").value = f.phone;
-  document.getElementById("farmerEmail").value = f.email;
-  document.getElementById("farmerAddress").value = f.address;
-  document.getElementById("farmerRegion").value = f.region;
-  document.getElementById("farmerGPS").value = f.gps;
+  document.getElementById("farmerId").value = farmer.farmerId;
+  document.getElementById("farmerName").value = farmer.name;
+  document.getElementById("farmerPhone").value = farmer.phone;
+  document.getElementById("farmerEmail").value = farmer.email;
+  document.getElementById("farmerAddress").value = farmer.address;
+  document.getElementById("farmerRegion").value = farmer.region;
+  document.getElementById("farmerGPS").value = farmer.gps;
 }
 
 function deleteFarmer(farmerId) {
+  if (!confirm(`Delete Farmer ID '${farmerId}'?`)) return;
   farmers = farmers.filter((f) => f.farmerId !== farmerId);
   saveFarmers();
   renderFarmersTable();
-  populateFarmerDropdown();
 }
 
 function exportFarmersAsCsv() {
@@ -302,14 +258,17 @@ function exportFarmersAsCsv() {
  ****************************************/
 function initPurchasesSection() {
   const purchaseForm = document.getElementById("purchaseForm");
-  purchaseForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    addPurchaseRecord();
-  });
+  if (purchaseForm) {
+    purchaseForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      addPurchaseRecord();
+    });
+  }
 
-  document
-    .getElementById("exportPurchasesCsv")
-    .addEventListener("click", exportPurchasesAsCsv);
+  const exportBtn = document.getElementById("exportPurchasesCsv");
+  if (exportBtn) {
+    exportBtn.addEventListener("click", exportPurchasesAsCsv);
+  }
 }
 
 function populateFarmerDropdown() {
@@ -317,15 +276,15 @@ function populateFarmerDropdown() {
   if (!purchaseFarmerId) return;
   purchaseFarmerId.innerHTML = "";
 
-  const opt = document.createElement("option");
-  opt.value = "";
-  opt.textContent = "Select Farmer...";
-  purchaseFarmerId.appendChild(opt);
+  const defaultOption = document.createElement("option");
+  defaultOption.value = "";
+  defaultOption.textContent = "Select Farmer...";
+  purchaseFarmerId.appendChild(defaultOption);
 
   farmers.forEach((f) => {
     const option = document.createElement("option");
     option.value = f.farmerId;
-    option.textContent = f.farmerId + " - " + f.name;
+    option.textContent = `${f.farmerId} - ${f.name}`;
     purchaseFarmerId.appendChild(option);
   });
 }
@@ -339,17 +298,29 @@ function addPurchaseRecord() {
   );
   const pricePerKg = parseFloat(document.getElementById("purchasePrice").value);
 
-  if (!purchaseId || !farmerId || !date || !quantity || !pricePerKg) return;
+  if (
+    !purchaseId ||
+    !farmerId ||
+    !date ||
+    isNaN(quantity) ||
+    isNaN(pricePerKg)
+  ) {
+    alert("All fields are required and must be valid.");
+    return;
+  }
 
   const totalCost = quantity * pricePerKg;
 
   const existing = purchases.find((p) => p.purchaseId === purchaseId);
   if (existing) {
-    existing.farmerId = farmerId;
-    existing.date = date;
-    existing.quantity = quantity;
-    existing.pricePerKg = pricePerKg;
-    existing.totalCost = totalCost;
+    if (!confirm(`Purchase ID '${purchaseId}' exists. Update record?`)) return;
+    Object.assign(existing, {
+      farmerId,
+      date,
+      quantity,
+      pricePerKg,
+      totalCost,
+    });
   } else {
     purchases.push({
       purchaseId,
@@ -361,9 +332,43 @@ function addPurchaseRecord() {
     });
   }
 
+  // Update Raw Inventory
+  updateRawInventoryAfterPurchase(farmerId, quantity);
+
   document.getElementById("purchaseForm").reset();
   savePurchases();
   renderPurchasesTable();
+}
+
+function updateRawInventoryAfterPurchase(farmerId, quantity) {
+  const farmer = farmers.find((f) => f.farmerId === farmerId);
+  if (!farmer) {
+    alert(`Farmer ID '${farmerId}' not found.`);
+    return;
+  }
+
+  const rawCategory = farmer.region; // Assuming region corresponds to raw category
+
+  let inventoryItem = inventoryItems.find(
+    (i) => i.category.toLowerCase() === rawCategory.toLowerCase()
+  );
+
+  if (inventoryItem) {
+    inventoryItem.quantity += quantity;
+  } else {
+    inventoryItems.push({
+      itemId: generateUniqueId("RAW"),
+      category: rawCategory,
+      quantity: quantity,
+      reorderLevel: 10, // Default value; adjust as needed
+      restockDate: "",
+      storageLocation: "Default Warehouse",
+    });
+  }
+
+  saveInventoryItems();
+  renderInventoryTable();
+  renderLowStockAlerts();
 }
 
 function renderPurchasesTable() {
@@ -377,7 +382,7 @@ function renderPurchasesTable() {
       <td>${p.purchaseId}</td>
       <td>${p.farmerId}</td>
       <td>${p.date}</td>
-      <td>${p.quantity}</td>
+      <td>${p.quantity.toFixed(2)}</td>
       <td>${p.pricePerKg.toFixed(2)}</td>
       <td>${p.totalCost.toFixed(2)}</td>
     `;
@@ -402,9 +407,10 @@ function exportPurchasesAsCsv() {
  *  EXPENSE CALCULATION
  ****************************************/
 function initExpenseCalculation() {
-  document
-    .getElementById("calculateExpenseBtn")
-    .addEventListener("click", calculateExpensesForPeriod);
+  const calculateBtn = document.getElementById("calculateExpenseBtn");
+  if (calculateBtn) {
+    calculateBtn.addEventListener("click", calculateExpensesForPeriod);
+  }
 }
 
 function calculateExpensesForPeriod() {
@@ -413,11 +419,13 @@ function calculateExpensesForPeriod() {
 
   let totalExpense = 0;
   purchases.forEach((p) => {
-    if ((start && p.date < start) || (end && p.date > end)) {
-      // skip
-    } else {
-      totalExpense += p.totalCost;
+    if (
+      (start && new Date(p.date) < new Date(start)) ||
+      (end && new Date(p.date) > new Date(end))
+    ) {
+      return; // Skip outside the date range
     }
+    totalExpense += p.totalCost;
   });
 
   document.getElementById("totalExpenseDisplay").textContent =
@@ -429,25 +437,33 @@ function calculateExpensesForPeriod() {
  ****************************************/
 function initPricingSection() {
   const pricingForm = document.getElementById("pricingForm");
-  pricingForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    updateCategoryPrice();
-  });
+  if (pricingForm) {
+    pricingForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      updateCategoryPrice();
+    });
+  }
 
   const categorySelect = document.getElementById("categorySelect");
-  categorySelect.innerHTML = "";
-  categoryPricing.forEach((cat) => {
-    const option = document.createElement("option");
-    option.value = cat.category;
-    option.textContent = cat.category;
-    categorySelect.appendChild(option);
-  });
+  if (categorySelect) {
+    categorySelect.innerHTML =
+      "<option value=''>-- Select Category --</option>";
+    categoryPricing.forEach((cat) => {
+      const option = document.createElement("option");
+      option.value = cat.category;
+      option.textContent = cat.category;
+      categorySelect.appendChild(option);
+    });
+  }
+
+  renderPricingTable();
 }
 
 function updateCategoryPrice() {
   const category = document.getElementById("categorySelect").value;
   const newWeight = document.getElementById("categoryWeight").value.trim();
   const newPrice = parseFloat(document.getElementById("categoryPrice").value);
+
   if (!category || !newWeight || isNaN(newPrice)) {
     alert(
       "Please select a category, provide a weight, and enter a valid price."
@@ -461,12 +477,19 @@ function updateCategoryPrice() {
     return;
   }
 
-  catObj.weightInfo = newWeight; // e.g., "0.1 kg" or "Varies"
+  catObj.weightInfo = newWeight;
   catObj.price = newPrice;
 
-  saveCategoryPricing(); // If you're using localStorage
-  renderPricingTable();
+  // Align packagedInventory
+  const packInv = packagedInventory.find((pi) => pi.category === category);
+  if (!packInv) {
+    packagedInventory.push({ category: category, units: 0, totalKg: 0 });
+  }
 
+  saveCategoryPricing();
+  savePackagedInventory();
+  renderPricingTable();
+  renderPackagedInventory();
   document.getElementById("pricingForm").reset();
   alert(`Category "${category}" updated!`);
 }
@@ -481,7 +504,7 @@ function renderPricingTable() {
     tr.innerHTML = `
       <td>${cat.category}</td>
       <td>${cat.weightInfo}</td>
-      <td>${cat.price}</td>
+      <td>${cat.price.toFixed(2)}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -492,72 +515,128 @@ function renderPricingTable() {
  ****************************************/
 function initPackagingSection() {
   const packageForm = document.getElementById("packageForm");
-  packageForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    packageBlueberries();
-  });
+  if (packageForm) {
+    packageForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      packageBlueberries();
+    });
+  }
 
   const packageCategorySelect = document.getElementById(
     "packageCategorySelect"
   );
-  packageCategorySelect.innerHTML = "";
-  categoryPricing.forEach((cat) => {
-    const option = document.createElement("option");
-    option.value = cat.category;
-    option.textContent = cat.category;
-    packageCategorySelect.appendChild(option);
-  });
+  if (packageCategorySelect) {
+    packageCategorySelect.innerHTML =
+      "<option value=''>-- Select Packaged Category --</option>";
+    categoryPricing.forEach((cat) => {
+      const option = document.createElement("option");
+      option.value = cat.category;
+      option.textContent = cat.category;
+      packageCategorySelect.appendChild(option);
+    });
+  }
 
-  // If packagedInventory was empty in storage, it’s already initialized above,
-  // but let's ensure it aligns with categoryPricing:
   alignPackagedInventory();
+  renderPackagedInventory();
 }
 
 function alignPackagedInventory() {
-  // Make sure each category in categoryPricing has a corresponding entry in packagedInventory
   categoryPricing.forEach((cat) => {
     const found = packagedInventory.find((pi) => pi.category === cat.category);
     if (!found) {
       packagedInventory.push({ category: cat.category, units: 0, totalKg: 0 });
     }
   });
-  // Remove any leftover categories from packagedInventory that no longer exist in categoryPricing
+
+  // Remove categories no longer present
   packagedInventory = packagedInventory.filter((pi) =>
     categoryPricing.some((cat) => cat.category === pi.category)
   );
+
   savePackagedInventory();
 }
 
 function packageBlueberries() {
-  const catSelect = document.getElementById("packageCategorySelect").value;
+  const rawCatSelect = document.getElementById("packagingRawCategory").value;
+  const packagedCatSelect = document.getElementById(
+    "packageCategorySelect"
+  ).value;
   const quantityKg = parseFloat(
     document.getElementById("packageQuantity").value
   );
 
-  const catObj = categoryPricing.find((c) => c.category === catSelect);
-  const invObj = packagedInventory.find((i) => i.category === catSelect);
-
-  if (catObj && invObj) {
-    // parse catObj.weightInfo if it's numeric
-    let weight = parseFloat(catObj.weightInfo);
-
-    if (isNaN(weight)) {
-      // If user typed something like "Varies" or something non-numeric,
-      // we must decide how many units we can form.
-      // For example, we might treat the entire input as 1 "unit."
-      // Or you could prompt the user for a numeric value.
-      weight = quantityKg; // Or do something else sensible
-    }
-
-    // number of whole "units" from the input quantity
-    const unitsToAdd = Math.floor(quantityKg / weight);
-    invObj.units += unitsToAdd;
-    invObj.totalKg += unitsToAdd * weight;
+  if (
+    !rawCatSelect ||
+    !packagedCatSelect ||
+    isNaN(quantityKg) ||
+    quantityKg <= 0
+  ) {
+    alert("All fields are required, and quantity must be greater than zero.");
+    return;
   }
 
-  // save and re-render
+  const rawInventoryItem = inventoryItems.find(
+    (i) => i.category.toLowerCase() === rawCatSelect.toLowerCase()
+  );
+  if (!rawInventoryItem) {
+    alert(`No raw inventory found for category "${rawCatSelect}".`);
+    return;
+  }
+
+  if (rawInventoryItem.quantity < quantityKg) {
+    alert(
+      `Insufficient raw inventory for category "${rawCatSelect}". Available: ${rawInventoryItem.quantity} kg.`
+    );
+    return;
+  }
+
+  // Deduct from raw inventory
+  rawInventoryItem.quantity -= quantityKg;
+
+  const packagedCatObj = categoryPricing.find(
+    (c) => c.category === packagedCatSelect
+  );
+  const packagedInvObj = packagedInventory.find(
+    (i) => i.category === packagedCatSelect
+  );
+
+  if (!packagedCatObj || !packagedInvObj) {
+    alert("Selected packaged category not found.");
+    return;
+  }
+
+  // Determine unit weight
+  let unitWeight = parseFloat(packagedCatObj.weightInfo);
+  let unitsToAdd;
+
+  if (isNaN(unitWeight)) {
+    // Handle "Varies"
+    unitsToAdd = 1; // Treat entire quantity as one unit
+    unitWeight = quantityKg;
+  } else {
+    unitsToAdd = Math.floor(quantityKg / unitWeight);
+  }
+
+  if (unitsToAdd <= 0) {
+    alert("Quantity too low to form at least one unit.");
+    return;
+  }
+
+  // Add to packaged inventory
+  packagedInvObj.units += unitsToAdd;
+  packagedInvObj.totalKg += unitsToAdd * unitWeight;
+
+  saveInventoryItems();
   savePackagedInventory();
+
+  renderInventoryTable();
   renderPackagedInventory();
+  renderLowStockAlerts();
+
+  alert(
+    `Packaged ${unitsToAdd} unit(s) of "${packagedCatSelect}" from "${rawCatSelect}".`
+  );
+  document.getElementById("packageForm").reset();
 }
 
 function renderPackagedInventory() {
@@ -581,27 +660,34 @@ function renderPackagedInventory() {
  ****************************************/
 function initOrderSection() {
   const orderForm = document.getElementById("orderForm");
-  orderForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    addOrUpdateOrder();
-  });
+  if (orderForm) {
+    orderForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      addOrUpdateOrder();
+    });
+  }
 
-  document
-    .getElementById("orderStatusFilter")
-    .addEventListener("change", renderOrdersTable);
+  const orderStatusFilter = document.getElementById("orderStatusFilter");
+  if (orderStatusFilter) {
+    orderStatusFilter.addEventListener("change", renderOrdersTable);
+  }
 
-  document
-    .getElementById("exportOrdersCsv")
-    .addEventListener("click", exportOrdersAsCsv);
+  const exportBtn = document.getElementById("exportOrdersCsv");
+  if (exportBtn) {
+    exportBtn.addEventListener("click", exportOrdersAsCsv);
+  }
 
   const orderCategory = document.getElementById("orderCategory");
-  orderCategory.innerHTML = "";
-  categoryPricing.forEach((cat) => {
-    const option = document.createElement("option");
-    option.value = cat.category;
-    option.textContent = cat.category;
-    orderCategory.appendChild(option);
-  });
+  if (orderCategory) {
+    orderCategory.innerHTML =
+      "<option value=''>-- Select Product Category --</option>";
+    categoryPricing.forEach((cat) => {
+      const option = document.createElement("option");
+      option.value = cat.category;
+      option.textContent = cat.category;
+      orderCategory.appendChild(option);
+    });
+  }
 }
 
 function addOrUpdateOrder() {
@@ -612,8 +698,17 @@ function addOrUpdateOrder() {
     .value.trim();
   const category = document.getElementById("orderCategory").value;
   const quantity = parseInt(document.getElementById("orderQuantity").value);
+  const orderDate = document.getElementById("orderDate").value;
 
-  if (!orderId || !customerName || !customerContact || !category || !quantity) {
+  if (
+    !orderId ||
+    !customerName ||
+    !customerContact ||
+    !category ||
+    isNaN(quantity) ||
+    !orderDate
+  ) {
+    alert("All order fields are required and must be valid.");
     return;
   }
 
@@ -625,12 +720,15 @@ function addOrUpdateOrder() {
 
   const existing = orders.find((o) => o.orderId === orderId);
   if (existing) {
-    existing.customerName = customerName;
-    existing.customerContact = customerContact;
-    existing.category = category;
-    existing.quantity = quantity;
-    existing.totalPrice = totalPrice;
-    // status remains unchanged
+    Object.assign(existing, {
+      customerName,
+      customerContact,
+      category,
+      quantity,
+      totalPrice,
+      date: orderDate,
+      // status remains unchanged
+    });
   } else {
     orders.push({
       orderId,
@@ -640,30 +738,49 @@ function addOrUpdateOrder() {
       quantity,
       totalPrice,
       status: "Pending",
+      date: orderDate,
     });
   }
+
+  // Deduct from packaged inventory
+  updateInventoryAfterSale(category, quantity);
 
   document.getElementById("orderForm").reset();
   saveOrders();
   renderOrdersTable();
   recalcTotalRevenue();
-  updateInventoryAfterSale(category, quantity);
 }
 
 function updateInventoryAfterSale(category, quantity) {
-  const invObj = packagedInventory.find((i) => i.category === category);
-  if (invObj) {
-    invObj.units = Math.max(0, invObj.units - quantity);
-    const catObj = categoryPricing.find((c) => c.category === category);
-    if (catObj) {
-      let weight = parseFloat(catObj.weightInfo);
-      if (!isNaN(weight)) {
-        invObj.totalKg = Math.max(0, invObj.totalKg - quantity * weight);
-      }
-    }
-    savePackagedInventory();
-    renderPackagedInventory();
+  const packInvObj = packagedInventory.find((i) => i.category === category);
+  if (!packInvObj) {
+    alert(`Packaged category "${category}" not found.`);
+    return;
   }
+
+  if (packInvObj.units < quantity) {
+    alert(
+      `Insufficient packaged inventory for category "${category}". Available units: ${packInvObj.units}`
+    );
+    return;
+  }
+
+  // Deduct from packaged inventory
+  packInvObj.units -= quantity;
+
+  // Update totalKg based on unit weight
+  const catObj = categoryPricing.find((c) => c.category === category);
+  let unitWeight = parseFloat(catObj.weightInfo);
+  if (isNaN(unitWeight)) {
+    // For "Varies", estimate or handle differently
+    unitWeight =
+      packInvObj.units > 0 ? packInvObj.totalKg / packInvObj.units : 0;
+  }
+  packInvObj.totalKg -= quantity * unitWeight;
+
+  savePackagedInventory();
+  renderPackagedInventory();
+  renderLowStockAlertsPackaged();
 }
 
 function renderOrdersTable() {
@@ -711,16 +828,19 @@ function renderOrdersTable() {
 }
 
 function editOrder(orderId) {
-  const o = orders.find((o) => o.orderId === orderId);
-  if (!o) return;
-  document.getElementById("orderId").value = o.orderId;
-  document.getElementById("customerName").value = o.customerName;
-  document.getElementById("customerContact").value = o.customerContact;
-  document.getElementById("orderCategory").value = o.category;
-  document.getElementById("orderQuantity").value = o.quantity;
+  const order = orders.find((o) => o.orderId === orderId);
+  if (!order) return;
+
+  document.getElementById("orderId").value = order.orderId;
+  document.getElementById("customerName").value = order.customerName;
+  document.getElementById("customerContact").value = order.customerContact;
+  document.getElementById("orderCategory").value = order.category;
+  document.getElementById("orderQuantity").value = order.quantity;
+  document.getElementById("orderDate").value = order.date;
 }
 
 function deleteOrder(orderId) {
+  if (!confirm(`Delete Order ID '${orderId}'?`)) return;
   orders = orders.filter((o) => o.orderId !== orderId);
   saveOrders();
   renderOrdersTable();
@@ -728,9 +848,9 @@ function deleteOrder(orderId) {
 }
 
 function updateOrderStatus(orderId, newStatus) {
-  const o = orders.find((o) => o.orderId === orderId);
-  if (o) {
-    o.status = newStatus;
+  const order = orders.find((o) => o.orderId === orderId);
+  if (order) {
+    order.status = newStatus;
     saveOrders();
     renderOrdersTable();
   }
@@ -745,6 +865,7 @@ function exportOrdersAsCsv() {
     "quantity",
     "totalPrice",
     "status",
+    "date",
   ];
   const csvString = generateCSVStringFromArrayOfObjects(orders, headers);
   downloadCSV("orders.csv", csvString);
@@ -754,9 +875,10 @@ function exportOrdersAsCsv() {
  *   REVENUE CALCULATION
  ****************************************/
 function initRevenueSection() {
-  document
-    .getElementById("recalcRevenueBtn")
-    .addEventListener("click", recalcTotalRevenue);
+  const recalcBtn = document.getElementById("recalcRevenueBtn");
+  if (recalcBtn) {
+    recalcBtn.addEventListener("click", recalcTotalRevenue);
+  }
 }
 
 function recalcTotalRevenue() {
@@ -792,9 +914,10 @@ function recalcTotalRevenue() {
  *  FINANCIAL ANALYSIS
  ****************************************/
 function initFinancialAnalysis() {
-  document
-    .getElementById("analyzeFinBtn")
-    .addEventListener("click", analyzeFinancials);
+  const analyzeBtn = document.getElementById("analyzeFinBtn");
+  if (analyzeBtn) {
+    analyzeBtn.addEventListener("click", analyzeFinancials);
+  }
 }
 
 function analyzeFinancials() {
@@ -802,19 +925,19 @@ function analyzeFinancials() {
   const end = document.getElementById("finEnd").value;
   const taxRate = parseFloat(document.getElementById("taxRate").value) || 0;
 
-  // Income from all orders
   let income = 0;
-  // If you wanted date-based, you'd store order dates. For now, sum all.
   orders.forEach((o) => {
+    const orderDate = new Date(o.date);
+    if (start && orderDate < new Date(start)) return;
+    if (end && orderDate > new Date(end)) return;
     income += o.totalPrice;
   });
 
-  // Expenses from purchases (filtered by date)
   let expense = 0;
   purchases.forEach((p) => {
-    if ((start && p.date < start) || (end && p.date > end)) {
-      return;
-    }
+    const purchaseDate = new Date(p.date);
+    if (start && purchaseDate < new Date(start)) return;
+    if (end && purchaseDate > new Date(end)) return;
     expense += p.totalCost;
   });
 
@@ -829,18 +952,21 @@ function analyzeFinancials() {
 }
 
 /****************************************
- *  INVENTORY MANAGEMENT
+ *  INVENTORY MANAGEMENT MODULE
  ****************************************/
-function initInventoryManagement() {
+function initInventoryManagementModule() {
   const inventoryForm = document.getElementById("inventoryForm");
-  inventoryForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    addOrUpdateInventoryItem();
-  });
+  if (inventoryForm) {
+    inventoryForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      addOrUpdateInventoryItem();
+    });
+  }
 
-  document
-    .getElementById("exportInventoryCsv")
-    .addEventListener("click", exportInventoryCsv);
+  const exportBtn = document.getElementById("exportInventoryCsv");
+  if (exportBtn) {
+    exportBtn.addEventListener("click", exportInventoryCsv);
+  }
 }
 
 function addOrUpdateInventoryItem() {
@@ -855,15 +981,20 @@ function addOrUpdateInventoryItem() {
     .getElementById("invStorageLocation")
     .value.trim();
 
-  if (!itemId || !category || isNaN(quantity) || isNaN(reorderLevel)) return;
+  if (!itemId || !category || isNaN(quantity) || isNaN(reorderLevel)) {
+    alert("All fields are required and must be valid.");
+    return;
+  }
 
   const existing = inventoryItems.find((i) => i.itemId === itemId);
   if (existing) {
-    existing.category = category;
-    existing.quantity = quantity;
-    existing.reorderLevel = reorderLevel;
-    existing.restockDate = restockDate;
-    existing.storageLocation = storageLocation;
+    Object.assign(existing, {
+      category,
+      quantity,
+      reorderLevel,
+      restockDate,
+      storageLocation,
+    });
   } else {
     inventoryItems.push({
       itemId,
@@ -878,6 +1009,7 @@ function addOrUpdateInventoryItem() {
   document.getElementById("inventoryForm").reset();
   saveInventoryItems();
   renderInventoryTable();
+  renderLowStockAlerts();
 }
 
 function renderInventoryTable() {
@@ -908,6 +1040,7 @@ function renderInventoryTable() {
 function editInventoryItem(itemId) {
   const item = inventoryItems.find((i) => i.itemId === itemId);
   if (!item) return;
+
   document.getElementById("invItemId").value = item.itemId;
   document.getElementById("invCategory").value = item.category;
   document.getElementById("invQuantity").value = item.quantity;
@@ -917,9 +1050,11 @@ function editInventoryItem(itemId) {
 }
 
 function deleteInventoryItem(itemId) {
+  if (!confirm(`Delete Inventory Item ID '${itemId}'?`)) return;
   inventoryItems = inventoryItems.filter((i) => i.itemId !== itemId);
   saveInventoryItems();
   renderInventoryTable();
+  renderLowStockAlerts();
 }
 
 function exportInventoryCsv() {
@@ -950,20 +1085,41 @@ function renderLowStockAlerts() {
       alertUl.appendChild(li);
     }
   });
+
+  // Additionally, render packaged inventory low stock alerts
+  renderLowStockAlertsPackaged();
+}
+
+function renderLowStockAlertsPackaged() {
+  const alertUl = document.getElementById("lowStockAlertsPackaged");
+  if (!alertUl) return;
+  alertUl.innerHTML = "";
+
+  // Define a reorder threshold for packaged inventory, e.g., 10 units
+  const reorderThreshold = 10;
+
+  packagedInventory.forEach((pi) => {
+    if (pi.units < reorderThreshold) {
+      const li = document.createElement("li");
+      li.textContent = `${pi.category} is below ${reorderThreshold} units!`;
+      alertUl.appendChild(li);
+    }
+  });
 }
 
 /****************************************
  *  COMPREHENSIVE REPORT
  ****************************************/
-let lastGeneratedReport = [];
+function initComprehensiveReportModule() {
+  const generateBtn = document.getElementById("generateReportBtn");
+  if (generateBtn) {
+    generateBtn.addEventListener("click", generateComprehensiveReport);
+  }
 
-function initComprehensiveReport() {
-  const btn = document.getElementById("generateReportBtn");
-  btn.addEventListener("click", generateComprehensiveReport);
-
-  document
-    .getElementById("exportComprehensiveCsv")
-    .addEventListener("click", exportComprehensiveReportCsv);
+  const exportBtn = document.getElementById("exportComprehensiveCsv");
+  if (exportBtn) {
+    exportBtn.addEventListener("click", exportComprehensiveReportCsv);
+  }
 }
 
 function generateComprehensiveReport() {
@@ -973,37 +1129,42 @@ function generateComprehensiveReport() {
   // 1. Total Income
   let totalIncome = 0;
   orders.forEach((o) => {
-    // no order date to filter, so sum all
+    const orderDate = new Date(o.date);
+    if (start && orderDate < new Date(start)) return;
+    if (end && orderDate > new Date(end)) return;
     totalIncome += o.totalPrice;
   });
 
-  // 2. Total expenses (filtered by date)
+  // 2. Total Expenses (filtered by date)
   let totalExpenses = 0;
   purchases.forEach((p) => {
-    if ((start && p.date < start) || (end && p.date > end)) {
-      return;
-    }
+    const purchaseDate = new Date(p.date);
+    if (start && purchaseDate < new Date(start)) return;
+    if (end && purchaseDate > new Date(end)) return;
     totalExpenses += p.totalCost;
   });
 
   // 3. Tax
-  // For demonstration, use a fixed 10%
-  const taxRate = 0.1;
+  const taxRate = 0.1; // Fixed 10%; adjust as needed
   const taxApplied = totalIncome * taxRate;
 
-  // 4. Net profit
+  // 4. Net Profit
   const netProfit = totalIncome - totalExpenses - taxApplied;
 
-  // 5. Number of products sold per category
+  // 5. Products Sold per Category
   let soldPerCategory = {};
   orders.forEach((o) => {
+    const orderDate = new Date(o.date);
+    if (start && orderDate < new Date(start)) return;
+    if (end && orderDate > new Date(end)) return;
+
     if (!soldPerCategory[o.category]) {
       soldPerCategory[o.category] = 0;
     }
     soldPerCategory[o.category] += o.quantity;
   });
 
-  // 6. Remaining stock per category (Packaged)
+  // 6. Remaining Stock per Category (Packaged)
   const remainingStock = packagedInventory.map((pi) => ({
     category: pi.category,
     units: pi.units,
@@ -1012,6 +1173,8 @@ function generateComprehensiveReport() {
 
   // Build HTML
   const outputDiv = document.getElementById("reportOutput");
+  if (!outputDiv) return;
+
   let html = `
     <h3>Comprehensive Report (Start: ${start || "N/A"} - End: ${
     end || "N/A"
@@ -1020,11 +1183,12 @@ function generateComprehensiveReport() {
     <p><strong>Total Expenses (Purchases):</strong> $${totalExpenses.toFixed(
       2
     )}</p>
-    <p><strong>Tax Applied (10% approx):</strong> $${taxApplied.toFixed(2)}</p>
+    <p><strong>Tax Applied (10%):</strong> $${taxApplied.toFixed(2)}</p>
     <p><strong>Net Profit:</strong> $${netProfit.toFixed(2)}</p>
     <h4>Products Sold per Category:</h4>
     <ul>
   `;
+
   Object.keys(soldPerCategory).forEach((cat) => {
     html += `<li>${cat}: ${soldPerCategory[cat]} units sold</li>`;
   });
@@ -1071,3 +1235,75 @@ function exportComprehensiveReportCsv() {
   );
   downloadCSV("comprehensive_report.csv", csvString);
 }
+
+/****************************************
+ *   DEMAND FORECASTING & ALERTS
+ ****************************************/
+function initForecastingSectionModule() {
+  const forecastBtn = document.getElementById("forecastDemandBtn");
+  if (forecastBtn) {
+    forecastBtn.addEventListener("click", forecastDemand);
+  }
+}
+
+function forecastDemand() {
+  // Calculate average daily sales per category over the last 30 days
+  const today = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+
+  let salesData = {};
+
+  orders.forEach((o) => {
+    const orderDate = new Date(o.date);
+    if (orderDate >= thirtyDaysAgo && orderDate <= today) {
+      if (!salesData[o.category]) {
+        salesData[o.category] = 0;
+      }
+      salesData[o.category] += o.quantity;
+    }
+  });
+
+  let recommendations = "";
+
+  Object.keys(salesData).forEach((cat) => {
+    const averageDailySales = salesData[cat] / 30;
+    const recommendedStock = Math.ceil(averageDailySales * 60); // Next 2 months
+    recommendations += `<p>${cat}: Average Daily Sales = ${averageDailySales.toFixed(
+      2
+    )} units/day. Recommended Stock for Next 2 Months = ${recommendedStock} units.</p>`;
+  });
+
+  document.getElementById("forecastOutput").innerHTML =
+    recommendations || "<p>No sales data available for forecasting.</p>";
+}
+
+/****************************************
+ *  INITIALIZATION FUNCTIONS
+ ****************************************/
+window.addEventListener("DOMContentLoaded", () => {
+  // Load data
+  loadDataFromLocalStorage();
+
+  // Initialize all sections
+  initFarmersSection();
+  initPurchasesSection();
+  initExpenseCalculation();
+  initPricingSection();
+  initPackagingSection();
+  initOrderSection();
+  initRevenueSection();
+  initFinancialAnalysis();
+  initInventoryManagementModule();
+  initComprehensiveReportModule();
+  initForecastingSectionModule();
+
+  // Render initial tables
+  renderFarmersTable();
+  renderPurchasesTable();
+  renderOrdersTable();
+  renderInventoryTable();
+  renderPricingTable();
+  renderPackagedInventory();
+  recalcTotalRevenue();
+});

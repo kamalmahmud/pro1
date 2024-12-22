@@ -18,6 +18,7 @@
           <li><a href="#financial-analysis">Financial Analysis</a></li>
           <li><a href="#inventory-management">Inventory Management</a></li>
           <li><a href="#reports">Comprehensive Reports</a></li>
+          <li><a href="#forecasting-alerts">Forecasting & Alerts</a></li>
         </ul>
       </nav>
     </header>
@@ -80,7 +81,6 @@
         </form>
 
         <!-- Search/Filter Farmers -->
-        <
         <div class="search-filter">
           <label for="farmerSearch">Search Farmer:</label>
           <input
@@ -121,7 +121,8 @@
           <input type="text" id="purchaseId" required />
 
           <label for="purchaseFarmerId">Farmer ID:</label>
-          <select id="purchaseFarmerId">
+          <select id="purchaseFarmerId" required>
+            <option value="">-- Select Farmer --</option>
             <!-- Filled by JS with farmer IDs -->
           </select>
 
@@ -131,7 +132,7 @@
           <label for="purchaseQuantity">Quantity (kg):</label>
           <input type="number" step="0.01" id="purchaseQuantity" required />
 
-          <label for="purchasePrice">Price per kg:</label>
+          <label for="purchasePrice">Price per kg ($):</label>
           <input type="number" step="0.01" id="purchasePrice" required />
 
           <button type="submit">Add Purchase</button>
@@ -144,8 +145,8 @@
               <th>Farmer ID</th>
               <th>Date</th>
               <th>Quantity (kg)</th>
-              <th>Price/kg</th>
-              <th>Total Cost</th>
+              <th>Price/kg ($)</th>
+              <th>Total Cost ($)</th>
             </tr>
           </thead>
           <tbody>
@@ -169,7 +170,7 @@
         </div>
         <p>
           Total Expense for selected period:
-          <span id="totalExpenseDisplay">0</span>
+          <span id="totalExpenseDisplay">0.00</span>
         </p>
       </div>
     </section>
@@ -201,7 +202,8 @@
         <h3>Pricing Structure</h3>
         <form id="pricingForm">
           <label for="categorySelect">Category:</label>
-          <select id="categorySelect">
+          <select id="categorySelect" required>
+            <option value="">-- Select Category --</option>
             <!-- Populated by JS (Small, Medium, Large, etc.) -->
           </select>
 
@@ -237,8 +239,17 @@
       <div class="sub-module">
         <h3>Package Blueberries Into Categories</h3>
         <form id="packageForm">
-          <label for="packageCategorySelect">Select Category:</label>
-          <select id="packageCategorySelect">
+          <label for="packagingRawCategory">Select Raw Category:</label>
+          <select id="packagingRawCategory" required>
+            <option value="">-- Select Raw Category --</option>
+            <option value="Fresh">Fresh</option>
+            <option value="Frozen">Frozen</option>
+            <option value="Organic">Organic</option>
+          </select>
+
+          <label for="packageCategorySelect">Select Packaged Category:</label>
+          <select id="packageCategorySelect" required>
+            <option value="">-- Select Packaged Category --</option>
             <!-- same categories as above -->
           </select>
 
@@ -248,9 +259,9 @@
           <button type="submit">Package</button>
         </form>
         <p>
-          Note: This will reduce your raw blueberry stock if you track it
-          separately, or simply reflect that you’ve allocated some bulk to
-          packaged inventory.
+          Note: This will reduce your raw blueberry stock from the selected raw
+          category and reflect that you’ve allocated some bulk to packaged
+          inventory.
         </p>
 
         <h4>Packaged Inventory by Category</h4>
@@ -266,6 +277,12 @@
             <!-- Updated by JS -->
           </tbody>
         </table>
+
+        <!-- Low-Stock Alerts for Packaged Inventory -->
+        <h4>Low-Stock Alerts (Packaged)</h4>
+        <ul id="lowStockAlertsPackaged">
+          <!-- Filled by JS -->
+        </ul>
       </div>
     </section>
 
@@ -288,7 +305,8 @@
           <input type="text" id="customerContact" required />
 
           <label for="orderCategory">Product Category:</label>
-          <select id="orderCategory">
+          <select id="orderCategory" required>
+            <option value="">-- Select Product Category --</option>
             <!-- same categories from pricing -->
           </select>
 
@@ -296,6 +314,10 @@
           <input type="number" id="orderQuantity" required />
 
           <button type="submit">Place/Update Order</button>
+
+          <!-- Optional: Order Date -->
+          <label for="orderDate">Order Date:</label>
+          <input type="date" id="orderDate" required />
         </form>
 
         <table id="ordersTable">
@@ -316,7 +338,7 @@
           </tbody>
         </table>
 
-        <!-- Order Status Update -->
+        <!-- Order Status Filter -->
         <div>
           <label for="orderStatusFilter">Filter by Order Status:</label>
           <select id="orderStatusFilter">
@@ -469,6 +491,17 @@
       <button id="exportComprehensiveCsv">
         Export Comprehensive Report as CSV
       </button>
+    </section>
+
+    <!-- =========================  DEMAND FORECASTING & ALERTS MODULE  ========================= -->
+    <section id="forecasting-alerts" class="module-section">
+      <h2>7. Demand Forecasting & Alerts Module</h2>
+      <p>Analyze past sales to predict future demand.</p>
+
+      <div>
+        <button id="forecastDemandBtn">Forecast Demand</button>
+        <div id="forecastOutput" style="margin-top: 1rem"></div>
+      </div>
     </section>
 
     <footer>
