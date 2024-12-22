@@ -298,6 +298,71 @@ function addPurchaseRecord() {
   );
   const pricePerKg = parseFloat(document.getElementById("purchasePrice").value);
 
+  let isValid = true;
+  let errorMsg = "";
+
+  const errorDiv = document.getElementById("purchaseFormErrors");
+  errorDiv.textContent = "";
+
+  // Validate Purchase ID
+  if (!purchaseId) {
+    isValid = false;
+    errorMsg += "Purchase ID is required.\n";
+  } else if (!/^[a-zA-Z0-9]+$/.test(purchaseId)) {
+    isValid = false;
+    errorMsg += "Purchase ID must be alphanumeric.\n";
+  } else if (purchases.find((p) => p.purchaseId === purchaseId)) {
+    isValid = false;
+    errorMsg += "Purchase ID must be unique.\n";
+  }
+
+  // Validate Farmer ID
+  if (!farmerId) {
+    isValid = false;
+    errorMsg += "Farmer ID is required.\n";
+  } else if (!farmers.find((f) => f.farmerId === farmerId)) {
+    isValid = false;
+    errorMsg += "Farmer ID does not exist.\n";
+  }
+
+  // Validate Date
+  if (!date) {
+    isValid = false;
+    errorMsg += "Date is required.\n";
+  } else {
+    const purchaseDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Compare only dates
+    if (purchaseDate > today) {
+      isValid = false;
+      errorMsg += "Date cannot be in the future.\n";
+    }
+  }
+
+  // Validate Quantity
+  if (isNaN(quantity)) {
+    isValid = false;
+    errorMsg += "Quantity must be a number.\n";
+  } else if (quantity <= 0) {
+    isValid = false;
+    errorMsg += "Quantity must be greater than zero.\n";
+  }
+
+  // Validate Price per Kg
+  if (isNaN(pricePerKg)) {
+    isValid = false;
+    errorMsg += "Price per Kg must be a number.\n";
+  } else if (pricePerKg <= 0) {
+    isValid = false;
+    errorMsg += "Price per Kg must be greater than zero.\n";
+  }
+
+  // If invalid, alert and stop
+  if (!isValid) {
+    errorDiv.textContent = "Please correct the following errors:\n" + errorMsg;
+    return;
+  }
+
   if (
     !purchaseId ||
     !farmerId ||
@@ -464,6 +529,51 @@ function updateCategoryPrice() {
   const newWeight = document.getElementById("categoryWeight").value.trim();
   const newPrice = parseFloat(document.getElementById("categoryPrice").value);
 
+  // Validation Flags
+  let isValid = true;
+  let errorMsg = "";
+
+  // Validate Category
+  if (!category) {
+    isValid = false;
+    errorMsg += "Product Category is required.\n";
+  } else if (!categoryPricing.find((c) => c.category === category)) {
+    isValid = false;
+    errorMsg += "Selected Product Category does not exist.\n";
+  }
+
+  // Validate Weight Info
+  if (!newWeight) {
+    isValid = false;
+    errorMsg += "Weight Info is required.\n";
+  } else if (!/^\d+(\.\d+)?\s?kg$/.test(newWeight)) {
+    isValid = false;
+    errorMsg += "Weight Info must be a valid format (e.g., '0.5 kg').\n";
+  }
+
+  // Validate Price
+  if (isNaN(newPrice)) {
+    isValid = false;
+    errorMsg += "Price must be a number.\n";
+  } else if (newPrice <= 0) {
+    isValid = false;
+    errorMsg += "Price must be greater than zero.\n";
+  }
+
+  // If invalid, display errors
+  const errorDiv = document.getElementById("pricingFormErrors");
+  if (errorDiv) errorDiv.textContent = "";
+
+  if (!isValid) {
+    if (errorDiv) {
+      errorDiv.textContent =
+        "Please correct the following errors:\n" + errorMsg;
+    } else {
+      alert("Please correct the following errors:\n" + errorMsg);
+    }
+    return;
+  }
+
   if (!category || !newWeight || isNaN(newPrice)) {
     alert(
       "Please select a category, provide a weight, and enter a valid price."
@@ -564,6 +674,62 @@ function packageBlueberries() {
   const quantityKg = parseFloat(
     document.getElementById("packageQuantity").value
   );
+
+  // Validation Flags
+  let isValid = true;
+  let errorMsg = "";
+
+  // Validate Raw Category
+  if (!rawCatSelect) {
+    isValid = false;
+    errorMsg += "Raw Category is required.\n";
+  } else if (!inventoryItems.find((i) => i.category === rawCatSelect)) {
+    isValid = false;
+    errorMsg += "Selected Raw Category does not exist in inventory.\n";
+  }
+
+  // Validate Packaged Category
+  if (!packagedCatSelect) {
+    isValid = false;
+    errorMsg += "Packaged Category is required.\n";
+  } else if (!categoryPricing.find((c) => c.category === packagedCatSelect)) {
+    isValid = false;
+    errorMsg += "Selected Packaged Category does not exist.\n";
+  }
+
+  // Validate Quantity
+  if (isNaN(quantityKg)) {
+    isValid = false;
+    errorMsg += "Quantity must be a number.\n";
+  } else if (quantityKg <= 0) {
+    isValid = false;
+    errorMsg += "Quantity must be greater than zero.\n";
+  } else {
+    // Check sufficient raw inventory
+    const rawInventoryItem = inventoryItems.find(
+      (i) => i.category === rawCatSelect
+    );
+    if (!rawInventoryItem || rawInventoryItem.quantity < quantityKg) {
+      isValid = false;
+      errorMsg += `Insufficient raw inventory for category "${rawCatSelect}". Available: ${
+        rawInventoryItem ? rawInventoryItem.quantity : 0
+      } kg.\n`;
+    }
+  }
+
+  // If invalid, display errors
+  const errorDiv = document.getElementById("packageFormErrors");
+  if (errorDiv) errorDiv.textContent = "";
+
+  if (!isValid) {
+    if (errorDiv) {
+      errorDiv.textContent =
+        "Please correct the following errors:\n" + errorMsg;
+    } else {
+      alert("Please correct the following errors:\n" + errorMsg);
+    }
+    return;
+  }
 
   if (
     !rawCatSelect ||
@@ -699,6 +865,95 @@ function addOrUpdateOrder() {
   const category = document.getElementById("orderCategory").value;
   const quantity = parseInt(document.getElementById("orderQuantity").value);
   const orderDate = document.getElementById("orderDate").value;
+
+  // Validation Flags
+  let isValid = true;
+  let errorMsg = "";
+
+  // Validate Order ID
+  if (!orderId) {
+    isValid = false;
+    errorMsg += "Order ID is required.\n";
+  } else if (!/^[a-zA-Z0-9]+$/.test(orderId)) {
+    isValid = false;
+    errorMsg += "Order ID must be alphanumeric.\n";
+  } else if (orders.find((o) => o.orderId === orderId)) {
+    isValid = false;
+    errorMsg += "Order ID must be unique.\n";
+  }
+
+  // Validate Customer Name
+  if (!customerName) {
+    isValid = false;
+    errorMsg += "Customer Name is required.\n";
+  } else if (!/^[a-zA-Z\s]+$/.test(customerName)) {
+    isValid = false;
+    errorMsg += "Customer Name must contain only letters and spaces.\n";
+  }
+
+  // Validate Customer Contact
+  if (!customerContact) {
+    isValid = false;
+    errorMsg += "Customer Contact is required.\n";
+  } else if (!/^[0-9+\-]{7,15}$/.test(customerContact)) {
+    isValid = false;
+    errorMsg += "Customer Contact must be a valid phone number.\n";
+  }
+
+  // Validate Product Category
+  if (!category) {
+    isValid = false;
+    errorMsg += "Product Category is required.\n";
+  } else if (!categoryPricing.find((c) => c.category === category)) {
+    isValid = false;
+    errorMsg += "Selected Product Category does not exist.\n";
+  }
+
+  // Validate Quantity
+  if (isNaN(quantity)) {
+    isValid = false;
+    errorMsg += "Quantity must be a number.\n";
+  } else if (quantity <= 0) {
+    isValid = false;
+    errorMsg += "Quantity must be greater than zero.\n";
+  } else {
+    // Check availability in packaged inventory
+    const packInvObj = packagedInventory.find((i) => i.category === category);
+    if (!packInvObj || packInvObj.units < quantity) {
+      isValid = false;
+      errorMsg += `Insufficient packaged inventory for category "${category}". Available units: ${
+        packInvObj ? packInvObj.units : 0
+      }.\n`;
+    }
+  }
+
+  // Validate Date
+  if (!orderDate) {
+    isValid = false;
+    errorMsg += "Order Date is required.\n";
+  } else {
+    const oDate = new Date(orderDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (oDate > today) {
+      isValid = false;
+      errorMsg += "Order Date cannot be in the future.\n";
+    }
+  }
+
+  // If invalid, display errors
+  const errorDiv = document.getElementById("orderFormErrors");
+  if (errorDiv) errorDiv.textContent = "";
+
+  if (!isValid) {
+    if (errorDiv) {
+      errorDiv.textContent =
+        "Please correct the following errors:\n" + errorMsg;
+    } else {
+      alert("Please correct the following errors:\n" + errorMsg);
+    }
+    return;
+  }
 
   if (
     !orderId ||
@@ -980,6 +1235,86 @@ function addOrUpdateInventoryItem() {
   const storageLocation = document
     .getElementById("invStorageLocation")
     .value.trim();
+
+  // Validation Flags
+  let isValid = true;
+  let errorMsg = "";
+
+  // Validate Item ID
+  if (!itemId) {
+    isValid = false;
+    errorMsg += "Item ID is required.\n";
+  } else if (!/^[a-zA-Z0-9]+$/.test(itemId)) {
+    isValid = false;
+    errorMsg += "Item ID must be alphanumeric.\n";
+  } else {
+    const existingItem = inventoryItems.find((i) => i.itemId === itemId);
+    if (!existingItem) {
+      // If adding new, ensure uniqueness
+      // Assuming update allows existing Item IDs
+    }
+  }
+
+  // Validate Category
+  if (!category) {
+    isValid = false;
+    errorMsg += "Category is required.\n";
+  } else if (!categoryPricing.find((c) => c.category === category)) {
+    isValid = false;
+    errorMsg += "Selected category does not exist.\n";
+  }
+
+  // Validate Quantity
+  if (isNaN(quantity)) {
+    isValid = false;
+    errorMsg += "Quantity must be a number.\n";
+  } else if (quantity < 0) {
+    isValid = false;
+    errorMsg += "Quantity cannot be negative.\n";
+  }
+
+  // Validate Reorder Level
+  if (isNaN(reorderLevel)) {
+    isValid = false;
+    errorMsg += "Reorder Level must be a number.\n";
+  } else if (reorderLevel < 0) {
+    isValid = false;
+    errorMsg += "Reorder Level cannot be negative.\n";
+  }
+
+  // Validate Restock Date
+  if (restockDate) {
+    const rDate = new Date(restockDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (rDate < today) {
+      isValid = false;
+      errorMsg += "Restock Date cannot be in the past.\n";
+    }
+  }
+
+  // Validate Storage Location
+  if (!storageLocation) {
+    isValid = false;
+    errorMsg += "Storage Location is required.\n";
+  } else if (!/^[a-zA-Z0-9\s]+$/.test(storageLocation)) {
+    isValid = false;
+    errorMsg += "Storage Location must be alphanumeric.\n";
+  }
+
+  // If invalid, display errors
+  const errorDiv = document.getElementById("inventoryFormErrors");
+  if (errorDiv) errorDiv.textContent = "";
+
+  if (!isValid) {
+    if (errorDiv) {
+      errorDiv.textContent =
+        "Please correct the following errors:\n" + errorMsg;
+    } else {
+      alert("Please correct the following errors:\n" + errorMsg);
+    }
+    return;
+  }
 
   if (!itemId || !category || isNaN(quantity) || isNaN(reorderLevel)) {
     alert("All fields are required and must be valid.");

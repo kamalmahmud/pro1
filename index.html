@@ -135,6 +135,8 @@
           <label for="purchasePrice">Price per kg ($):</label>
           <input type="number" step="0.01" id="purchasePrice" required />
 
+          <div id="purchaseFormErrors" class="form-errors"></div>
+
           <button type="submit">Add Purchase</button>
         </form>
 
@@ -218,6 +220,8 @@
           <label for="categoryPrice">Price ($):</label>
           <input type="number" step="0.01" id="categoryPrice" required />
 
+          <div id="pricingFormErrors" class="form-errors"></div>
+
           <button type="submit">Set/Update Category</button>
         </form>
 
@@ -255,6 +259,8 @@
 
           <label for="packageQuantity">Quantity to Package (in kg):</label>
           <input type="number" step="0.01" id="packageQuantity" required />
+
+          <div id="packageFormErrors" class="form-errors"></div>
 
           <button type="submit">Package</button>
         </form>
@@ -313,11 +319,13 @@
           <label for="orderQuantity">Quantity (units):</label>
           <input type="number" id="orderQuantity" required />
 
-          <button type="submit">Place/Update Order</button>
+          <div id="orderFormErrors" class="form-errors"></div>
 
           <!-- Optional: Order Date -->
           <label for="orderDate">Order Date:</label>
           <input type="date" id="orderDate" required />
+
+          <button type="submit">Place/Update Order</button>
         </form>
 
         <table id="ordersTable">
@@ -430,6 +438,8 @@
 
         <label for="invStorageLocation">Storage Location:</label>
         <input type="text" id="invStorageLocation" />
+
+        <div id="inventoryFormErrors" class="form-errors"></div>
 
         <button type="submit">Add/Update Inventory Item</button>
       </form>

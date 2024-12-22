@@ -382,3 +382,9 @@ footer {
     display: none;
   }
 }
+
+.form-errors {
+  color: #e74c3c;
+  margin-bottom: 15px;
+  white-space: pre-line; /* Preserves line breaks */
+}
