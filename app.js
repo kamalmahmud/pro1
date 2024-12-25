@@ -104,8 +104,6 @@ function generateUniqueId(prefix) {
   return prefix + Math.random().toString(36).substr(2, 9).toUpperCase();
 }
 
-// Add to app.js after the helper functions section
-
 const ModuleEvents = {
   PURCHASE: "purchase",
   SALE: "sale",
@@ -547,7 +545,7 @@ function addPurchaseRecord() {
       if (inventoryItem) {
         // Subtract the old quantity
         inventoryItem.quantity -= oldQuantity;
-        // Add the new quantity
+        // Add new quantity
         inventoryItem.quantity += quantity;
       }
     }
@@ -561,7 +559,6 @@ function addPurchaseRecord() {
       totalCost: quantity * pricePerKg,
     });
   } else {
-    // Add new purchase (existing code remains the same)
     purchases.push({
       purchaseId,
       farmerId,
@@ -617,25 +614,6 @@ function updateRawInventoryAfterPurchase(purchaseData) {
   renderInventoryTable();
   renderLowStockAlerts();
 }
-
-// function renderPurchasesTable() {
-//   const tbody = document.querySelector("#purchasesTable tbody");
-//   if (!tbody) return;
-//   tbody.innerHTML = "";
-
-//   purchases.forEach((p) => {
-//     const tr = document.createElement("tr");
-//     tr.innerHTML = `
-//       <td>${p.purchaseId}</td>
-//       <td>${p.farmerId}</td>
-//       <td>${p.date}</td>
-//       <td>${p.quantity.toFixed(2)}</td>
-//       <td>${p.pricePerKg.toFixed(2)}</td>
-//       <td>${p.totalCost.toFixed(2)}</td>
-//     `;
-//     tbody.appendChild(tr);
-//   });
-// }
 
 function renderPurchasesTable() {
   const tbody = document.querySelector("#purchasesTable tbody");
@@ -1052,22 +1030,6 @@ function renderPackagedInventory() {
   });
 }
 
-// function renderPackagedInventory() {
-//   const tbody = document.querySelector("#packagedInventoryTable tbody");
-//   if (!tbody) return;
-//   tbody.innerHTML = "";
-
-//   packagedInventory.forEach((item) => {
-//     const tr = document.createElement("tr");
-//     tr.innerHTML = `
-//       <td>${item.category}</td>
-//       <td>${item.units}</td>
-//       <td>${item.totalKg.toFixed(2)}</td>
-//     `;
-//     tbody.appendChild(tr);
-//   });
-// }
-
 /****************************************
  *   SALES MANAGEMENT (Orders)
  ****************************************/
@@ -1421,117 +1383,6 @@ function initFinancialAnalysis() {
     analyzeBtn.addEventListener("click", analyzeFinancials);
   }
 }
-
-// function analyzeFinancials() {
-//   const start = document.getElementById("finStart").value;
-//   const end = document.getElementById("finEnd").value;
-//   const taxMethod = document.getElementById("taxMethod").value;
-//   const allowDeductions = document.getElementById("allowDeductions").checked;
-//   const minimumThreshold =
-//     parseFloat(document.getElementById("minimumThreshold").value) || 1000;
-//   const manualTaxRate =
-//     parseFloat(document.getElementById("taxRate").value) || 10;
-
-//   // Calculate income
-//   let income = 0;
-//   orders.forEach((o) => {
-//     const orderDate = new Date(o.date);
-//     if (start && orderDate < new Date(start)) return;
-//     if (end && orderDate > new Date(end)) return;
-//     income += o.totalPrice;
-//   });
-
-//   // Calculate expenses
-//   let expense = 0;
-//   purchases.forEach((p) => {
-//     const purchaseDate = new Date(p.date);
-//     if (start && purchaseDate < new Date(start)) return;
-//     if (end && purchaseDate > new Date(end)) return;
-//     expense += p.totalCost;
-//   });
-
-//   // Calculate taxable income
-//   const taxableIncome = income - expense;
-
-//   // Calculate tax using the enhanced tax calculation
-//   const taxResults = enhancedTaxCalculation(taxableIncome, {
-//     taxMethod: taxMethod,
-//     allowDeductions: allowDeductions,
-//     minimumThreshold: minimumThreshold,
-//     manualTaxRate: manualTaxRate / 100, // Convert percentage to decimal
-//   });
-
-//   // Calculate net profit
-//   const netProfit = taxableIncome - taxResults.taxAmount;
-
-//   // Update displays
-//   document.getElementById("finIncomeDisplay").textContent = income.toFixed(2);
-//   document.getElementById("finExpenseDisplay").textContent = expense.toFixed(2);
-//   document.getElementById("finTaxDisplay").textContent =
-//     taxResults.taxAmount.toFixed(2);
-//   document.getElementById("finProfitDisplay").textContent =
-//     netProfit.toFixed(2);
-
-//   // Display additional tax information
-//   const taxDetailsDiv = document.getElementById("taxDetails");
-//   if (taxDetailsDiv) {
-//     taxDetailsDiv.innerHTML = `
-//           <h4>Detailed Tax Information</h4>
-//           <p>Total Income: $${income.toFixed(2)}</p>
-//           <p>Total Expenses: $${expense.toFixed(2)}</p>
-//           <p>Taxable Income: $${taxableIncome.toFixed(2)}</p>
-//           <p>Tax Method: ${
-//             taxMethod === "progressive" ? "Progressive" : "Standard Rate"
-//           }</p>
-//           <p>Tax Rate: ${manualTaxRate}%</p>
-//           <p>Tax Amount: $${taxResults.taxAmount.toFixed(2)}</p>
-//           <p>Effective Tax Rate: ${taxResults.effectiveRate.toFixed(2)}%</p>
-//       `;
-//   }
-
-//   updateDeductionsBreakdown();
-// }
-
-// function enhancedTaxCalculation(taxableIncome, options = {}) {
-//   const {
-//     taxMethod = "standard",
-//     allowDeductions = true,
-//     minimumThreshold = 1000,
-//     manualTaxRate = 0.1, // Default 10%
-//   } = options;
-
-//   // Ensure taxable income is not negative
-//   taxableIncome = Math.max(0, taxableIncome);
-
-//   // Check minimum threshold
-//   if (taxableIncome <= minimumThreshold) {
-//     return {
-//       taxAmount: 0,
-//       effectiveRate: 0,
-//       deductions: 0,
-//       taxableIncome,
-//     };
-//   }
-
-//   // Calculate tax based on method
-//   let taxAmount;
-//   if (taxMethod === "progressive") {
-//     taxAmount = calculateProgressiveTax(taxableIncome);
-//   } else {
-//     // Standard method uses manual tax rate
-//     taxAmount = taxableIncome * manualTaxRate;
-//   }
-
-//   // Calculate effective tax rate
-//   const effectiveRate = (taxAmount / taxableIncome) * 100;
-
-//   return {
-//     taxAmount,
-//     effectiveRate,
-//     deductions: 0,
-//     taxableIncome,
-//   };
-// }
 
 function enhancedTaxCalculation(taxableIncome, options = {}) {
   const {
@@ -2039,22 +1890,6 @@ function renderLowStockAlerts() {
   renderLowStockAlertsPackaged();
 }
 
-// function renderLowStockAlertsPackaged() {
-//   const alertUl = document.getElementById("lowStockAlertsPackaged");
-//   if (!alertUl) return;
-//   alertUl.innerHTML = "";
-
-//   // Define a reorder threshold for packaged inventory, e.g., 10 units
-//   const reorderThreshold = 10;
-
-//   packagedInventory.forEach((pi) => {
-//     if (pi.units < reorderThreshold) {
-//       const li = document.createElement("li");
-//       li.textContent = `${pi.category} is below ${reorderThreshold} units!`;
-//       alertUl.appendChild(li);
-//     }
-//   });
-// }
 function renderLowStockAlertsPackaged() {
   const alertUl = document.getElementById("lowStockAlertsPackaged");
   if (!alertUl) return;
