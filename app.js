@@ -1628,18 +1628,25 @@ function initInventoryManagementModule() {
 }
 
 function initializeCategories() {
-  // Get unique categories from farmers' regions
-  const uniqueCategories = [...new Set(farmers.map((farmer) => farmer.region))];
+  // Get unique categories from farmers' regions, converting to lowercase to handle case-insensitivity
+  const uniqueCategories = [
+    ...new Set(farmers.map((farmer) => farmer.region.toLowerCase())),
+  ];
 
   // Ensure each category has an inventory entry
-  uniqueCategories.forEach((category) => {
+  uniqueCategories.forEach((lowercaseCategory) => {
     const existingItem = inventoryItems.find(
-      (item) => item.category === category
+      (item) => item.category.toLowerCase() === lowercaseCategory
     );
     if (!existingItem) {
+      // Use the original case from the first occurrence
+      const originalCategory = farmers.find(
+        (farmer) => farmer.region.toLowerCase() === lowercaseCategory
+      ).region;
+
       inventoryItems.push({
         itemId: generateUniqueId("RAW"),
-        category: category,
+        category: originalCategory,
         quantity: 0,
         reorderLevel: 10,
         restockDate: "",
@@ -1704,9 +1711,15 @@ function addOrUpdateInventoryItem() {
   } else if (!/^[a-zA-Z0-9]+$/.test(itemId)) {
     isValid = false;
     errorMsg += "Item ID must be alphanumeric.\n";
-  } else if (inventoryItems.some((i) => i.itemId === itemId)) {
-    isValid = false;
-    errorMsg += "Item ID must be unique.\n";
+  } else {
+    // Check for duplicate Item ID, excluding the current item
+    const existingItemId = inventoryItems.some(
+      (i) => i.itemId === itemId && i.itemId !== itemId
+    );
+    if (existingItemId) {
+      isValid = false;
+      errorMsg += "Item ID must be unique.\n";
+    }
   }
 
   // Validate Category
@@ -1716,6 +1729,18 @@ function addOrUpdateInventoryItem() {
   } else if (!/^[a-zA-Z\s]+$/.test(category)) {
     isValid = false;
     errorMsg += "Category must contain only letters and spaces.\n";
+  } else {
+    // Check for duplicate categories case-insensitively, excluding the current item
+    const isDuplicateCategory = inventoryItems.some(
+      (item) =>
+        item.category.toLowerCase() === category.toLowerCase() &&
+        item.itemId !== itemId
+    );
+    if (isDuplicateCategory) {
+      isValid = false;
+      errorMsg +=
+        "A category with this name already exists. Please use a unique category.\n";
+    }
   }
 
   // Validate Quantity
@@ -2019,19 +2044,200 @@ function generateComprehensiveReport() {
       value: JSON.stringify(remainingStock),
     },
   ];
+  localStorage.setItem(
+    "lastGeneratedReport",
+    JSON.stringify(lastGeneratedReport)
+  );
 }
+
+// function exportComprehensiveReportCsv() {
+//   if (lastGeneratedReport.length === 0) {
+//     alert("No report generated yet!");
+//     return;
+//   }
+//   const headers = ["parameter", "value"];
+//   const csvString = generateCSVStringFromArrayOfObjects(
+//     lastGeneratedReport,
+//     headers
+//   );
+//   downloadCSV("comprehensive_report.csv", csvString);
+// }
 
 function exportComprehensiveReportCsv() {
   if (lastGeneratedReport.length === 0) {
     alert("No report generated yet!");
     return;
   }
+
+  // Convert report array to object for easier access
+  const reportData = {};
+  lastGeneratedReport.forEach((item) => {
+    reportData[item.parameter] = item.value;
+  });
+
+  // Create HTML content as a string
+  const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Blueberry Factory Comprehensive Report</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background-color: #f4f4f4; }
+        .report-header { text-align: center; margin-bottom: 30px; }
+        .chart-container { background-color: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        .summary-card { background-color: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 15px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="report-header">
+        <h1>Blueberry Factory Comprehensive Report</h1>
+        <p id="report-period">Period: ${reportData["Start Date"] || "N/A"} to ${
+    reportData["End Date"] || "N/A"
+  }</p>
+    </div>
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <h3>Total Income</h3>
+            <h2>$${parseFloat(reportData["Total Income"] || 0).toFixed(2)}</h2>
+        </div>
+        <div class="summary-card">
+            <h3>Total Expenses</h3>
+            <h2>$${parseFloat(reportData["Total Expenses"] || 0).toFixed(
+              2
+            )}</h2>
+        </div>
+        <div class="summary-card">
+            <h3>Net Profit</h3>
+            <h2>$${parseFloat(reportData["Net Profit"] || 0).toFixed(2)}</h2>
+        </div>
+        <div class="summary-card">
+            <h3>Tax Applied</h3>
+            <h2>$${parseFloat(reportData["Tax Applied"] || 0).toFixed(2)}</h2>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="salesByCategoryChart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="stockByCategoryChart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="financialBreakdownChart"></canvas>
+    </div>
+
+    <script>
+        // Parse data from reportData
+        const salesData = JSON.parse('${
+          reportData["Products Sold (per category)"]
+        }' || '{}');
+        const stockData = JSON.parse('${
+          reportData["Remaining Stock (per category)"]
+        }' || '[]');
+        const totalIncome = ${parseFloat(reportData["Total Income"] || 0)};
+        const totalExpenses = ${parseFloat(reportData["Total Expenses"] || 0)};
+        const taxApplied = ${parseFloat(reportData["Tax Applied"] || 0)};
+
+        // Function to create charts
+        function createCharts() {
+            // Sales by Category Chart
+            const salesCtx = document.getElementById('salesByCategoryChart').getContext('2d');
+            new Chart(salesCtx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(salesData),
+                    datasets: [{
+                        label: 'Units Sold',
+                        data: Object.values(salesData),
+                        backgroundColor: 'rgba(37, 99, 235, 0.6)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: 'Sales by Product Category' }
+                    }
+                }
+            });
+
+            // Stock by Category Chart
+            const stockCtx = document.getElementById('stockByCategoryChart').getContext('2d');
+            new Chart(stockCtx, {
+                type: 'pie',
+                data: {
+                    labels: stockData.map(item => item.category),
+                    datasets: [{
+                        label: 'Remaining Stock (kg)',
+                        data: stockData.map(item => item.totalKg),
+                        backgroundColor: [
+                            'rgba(37, 99, 235, 0.6)',
+                            'rgba(16, 185, 129, 0.6)',
+                            'rgba(245, 158, 11, 0.6)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: 'Remaining Stock by Category' }
+                    }
+                }
+            });
+
+            // Financial Breakdown Chart
+            const financialCtx = document.getElementById('financialBreakdownChart').getContext('2d');
+            new Chart(financialCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Income', 'Expenses', 'Tax'],
+                    datasets: [{
+                        data: [totalIncome, totalExpenses, taxApplied],
+                        backgroundColor: [
+                            'rgba(16, 185, 129, 0.6)',
+                            'rgba(239, 68, 68, 0.6)',
+                            'rgba(37, 99, 235, 0.6)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: { display: true, text: 'Financial Breakdown' }
+                    }
+                }
+            });
+        }
+
+        // Ensure Chart.js is loaded before creating charts
+        if (window.Chart) {
+            createCharts();
+        } else {
+            document.addEventListener('DOMContentLoaded', createCharts);
+        }
+    </script>
+</body>
+</html>`;
+
+  // Create and download CSV
   const headers = ["parameter", "value"];
   const csvString = generateCSVStringFromArrayOfObjects(
     lastGeneratedReport,
     headers
   );
   downloadCSV("comprehensive_report.csv", csvString);
+
+  // Create and download HTML
+  const blob = new Blob([htmlContent], { type: "text/html" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "comprehensive_report.html";
+  link.click();
 }
 
 /****************************************
