@@ -23,6 +23,61 @@
       </nav>
     </header>
 
+    <!-- Dashboard Section -->
+    <section id="dashboard" class="module-section">
+      <h2>Dashboard Overview</h2>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <h3>Total Revenue</h3>
+          <div class="stat-value" id="dashboardRevenue">$0.00</div>
+          <div class="stat-trend positive">↑ 12%</div>
+        </div>
+
+        <div class="stat-card">
+          <h3>Active Orders</h3>
+          <div class="stat-value" id="dashboardOrders">0</div>
+          <div class="stat-trend">Today</div>
+        </div>
+
+        <div class="stat-card">
+          <h3>Low Stock Items</h3>
+          <div class="stat-value" id="dashboardLowStock">0</div>
+          <div class="stat-trend negative">Needs Attention</div>
+        </div>
+
+        <div class="stat-card">
+          <h3>Total Suppliers</h3>
+          <div class="stat-value" id="dashboardSuppliers">0</div>
+        </div>
+      </div>
+
+      <!-- Charts Section -->
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3>Sales Trend</h3>
+          <canvas id="salesChart"></canvas>
+        </div>
+
+        <div class="chart-card">
+          <h3>Inventory Status</h3>
+          <canvas id="inventoryChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="activity-section">
+        <h3>Recent Activity</h3>
+        <div class="activity-list" id="recentActivity">
+          <!-- Filled dynamically -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Import Chart.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+
     <!-- =========================  SUPPLIER MANAGEMENT MODULE  ========================= -->
     <section id="supplier-management" class="module-section">
       <h2>1. Supplier Management Module</h2>
@@ -149,6 +204,7 @@
               <th>Quantity (kg)</th>
               <th>Price/kg ($)</th>
               <th>Total Cost ($)</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -277,6 +333,7 @@
               <th>Category</th>
               <th>Stock (units)</th>
               <th>Equivalent Weight (kg)</th>
+              <th>Restock Level</th>
             </tr>
           </thead>
           <tbody>
@@ -390,23 +447,86 @@
       <h2>4. Financial Analysis Module</h2>
       <p>Calculate overall income, expenses, tax, and net profit.</p>
 
+      <!-- Date Selection and Tax Settings Combined -->
       <div class="sub-module">
-        <h3>Period Selection for Financial Analysis</h3>
-        <label for="finStart">Start Date:</label>
-        <input type="date" id="finStart" />
-        <label for="finEnd">End Date:</label>
-        <input type="date" id="finEnd" />
+        <h3>Financial Analysis Settings</h3>
 
-        <label for="taxRate">Tax Rate (%):</label>
-        <input type="number" step="0.01" id="taxRate" value="10" />
+        <!-- Period Selection -->
+        <div class="form-group">
+          <label for="finStart">Start Date:</label>
+          <input type="date" id="finStart" />
+
+          <label for="finEnd">End Date:</label>
+          <input type="date" id="finEnd" />
+        </div>
+
+        <!-- Tax Settings -->
+        <div class="tax-settings">
+          <h4>Tax Calculation Settings</h4>
+
+          <div class="form-group">
+            <label for="taxMethod">Tax Calculation Method:</label>
+            <select id="taxMethod" class="form-control">
+              <option value="standard">Standard Rate</option>
+              <option value="progressive">Progressive Rates</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="taxRate">Tax Rate (%):</label>
+            <input
+              type="number"
+              id="taxRate"
+              value="10"
+              min="0"
+              max="100"
+              step="0.1"
+              class="form-control"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="allowDeductions" checked />
+              Allow Deductions
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label for="minimumThreshold">Minimum Threshold ($):</label>
+            <input
+              type="number"
+              id="minimumThreshold"
+              value="1000"
+              min="0"
+              step="100"
+              class="form-control"
+            />
+          </div>
+        </div>
+
         <button id="analyzeFinBtn">Analyze Financials</button>
       </div>
 
+      <!-- Results Display -->
       <div class="sub-module">
-        <p>Income (Sales): $<span id="finIncomeDisplay">0.00</span></p>
-        <p>Expenses (Purchases): $<span id="finExpenseDisplay">0.00</span></p>
-        <p>Tax Amount: $<span id="finTaxDisplay">0.00</span></p>
-        <p>Net Profit: $<span id="finProfitDisplay">0.00</span></p>
+        <h4>Financial Results</h4>
+        <div class="results-grid">
+          <p>Income (Sales): $<span id="finIncomeDisplay">0.00</span></p>
+          <p>Expenses (Purchases): $<span id="finExpenseDisplay">0.00</span></p>
+          <p>Tax Amount: $<span id="finTaxDisplay">0.00</span></p>
+          <p>Net Profit: $<span id="finProfitDisplay">0.00</span></p>
+        </div>
+
+        <!-- Detailed Tax Information -->
+        <div id="taxDetails" class="tax-details">
+          <!-- Filled dynamically by JavaScript -->
+        </div>
+
+        <!-- Deductions Breakdown -->
+        <div id="deductionsBreakdown" class="deductions-breakdown">
+          <!-- Filled dynamically by JavaScript -->
+        </div>
       </div>
     </section>
 
@@ -420,25 +540,48 @@
 
       <form id="inventoryForm">
         <label for="invItemId">Item ID:</label>
-        <input type="text" id="invItemId" required />
+        <input
+          type="text"
+          id="invItemId"
+          placeholder="Alphanumeric ID"
+          required
+          pattern="[a-zA-Z0-9]+"
+        />
 
-        <label for="invCategory"
-          >Category (Fresh, Frozen, Organic, etc.):</label
-        >
-        <input type="text" id="invCategory" required />
+        <label for="invCategory">Category:</label>
+        <input
+          type="text"
+          id="invCategory"
+          placeholder="Fresh, Frozen, Organic"
+          required
+          pattern="[a-zA-Z\s]+"
+        />
 
         <label for="invQuantity">Quantity Available (kg):</label>
-        <input type="number" step="0.01" id="invQuantity" required />
+        <input type="number" step="0.01" id="invQuantity" min="0" required />
 
         <label for="invReorderLevel">Reorder Level (kg):</label>
-        <input type="number" step="0.01" id="invReorderLevel" required />
+        <input
+          type="number"
+          step="0.01"
+          id="invReorderLevel"
+          min="0"
+          required
+        />
 
-        <label for="invRestockDate">Restock Date (planned or actual):</label>
+        <label for="invRestockDate">Restock Date (optional):</label>
         <input type="date" id="invRestockDate" />
 
         <label for="invStorageLocation">Storage Location:</label>
-        <input type="text" id="invStorageLocation" />
+        <input
+          type="text"
+          id="invStorageLocation"
+          required
+          minlength="3"
+          placeholder="Main Warehouse, Cold Storage, etc."
+        />
 
+        <!-- Error messages div -->
         <div id="inventoryFormErrors" class="form-errors"></div>
 
         <button type="submit">Add/Update Inventory Item</button>
@@ -513,6 +656,14 @@
         <div id="forecastOutput" style="margin-top: 1rem"></div>
       </div>
     </section>
+
+    <!-- Add this in an appropriate section, perhaps near the footer -->
+    <div class="danger-zone">
+      <h3>System Administration</h3>
+      <button onclick="clearLocalStorage()" class="btn-danger">
+        Clear All Data
+      </button>
+    </div>
 
     <footer>
       <p>&copy; 2024 Blueberry Factory Management</p>

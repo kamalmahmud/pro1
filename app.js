@@ -8,8 +8,8 @@ let purchases = [];
 let orders = [];
 let inventoryItems = [];
 let categoryPricing = []; // Pricing for product categories
-let packagedInventory = []; // Packaged inventory details
-
+let packagedInventory = [];
+let packagedReorderLevels = {};
 // Report Data
 let lastGeneratedReport = []; // Stores the last generated report for CSV export
 
@@ -104,6 +104,162 @@ function generateUniqueId(prefix) {
   return prefix + Math.random().toString(36).substr(2, 9).toUpperCase();
 }
 
+// Add to app.js after the helper functions section
+
+const ModuleEvents = {
+  PURCHASE: "purchase",
+  SALE: "sale",
+  INVENTORY: "inventory",
+  FINANCIAL: "financial",
+};
+
+function updateConnectedModules(eventType, data) {
+  console.log(`Processing ${eventType} event:`, data);
+
+  switch (eventType) {
+    case ModuleEvents.PURCHASE:
+      handlePurchaseUpdate(data);
+      break;
+    case ModuleEvents.SALE:
+      handleSaleUpdate(data);
+      break;
+    case ModuleEvents.INVENTORY:
+      handleInventoryUpdate(data);
+      break;
+    case ModuleEvents.FINANCIAL:
+      handleFinancialUpdate(data);
+      break;
+  }
+
+  // Trigger alerts check
+  checkSystemAlerts();
+}
+
+function handlePurchaseUpdate(data) {
+  // Update inventory
+  const inventoryItem = inventoryItems.find(
+    (i) => i.category === data.category
+  );
+  if (inventoryItem) {
+    inventoryItem.quantity += data.quantity;
+    saveInventoryItems();
+    renderInventoryTable();
+  }
+
+  // Update financials
+  calculateExpensesForPeriod();
+  analyzeFinancials();
+
+  // Update reports
+  generateComprehensiveReport();
+}
+
+function handleSaleUpdate(data) {
+  // Update inventory
+  updateInventoryAfterSale(data.category, data.quantity);
+
+  // Update revenue
+  recalcTotalRevenue();
+
+  // Check reorder points
+  checkReorderPoints();
+
+  // Update reports
+  generateComprehensiveReport();
+}
+
+function handleInventoryUpdate(data) {
+  renderInventoryTable();
+  renderLowStockAlerts();
+  renderPackagedInventory();
+
+  // Update forecasting
+  if (document.getElementById("forecastOutput")) {
+    enhancedDemandForecast();
+  }
+}
+
+function handleFinancialUpdate(data) {
+  recalcTotalRevenue();
+  analyzeFinancials();
+  generateComprehensiveReport();
+}
+
+function checkSystemAlerts() {
+  const alerts = [];
+
+  // Check inventory levels
+  inventoryItems.forEach((item) => {
+    if (item.quantity < item.reorderLevel) {
+      alerts.push({
+        type: "inventory",
+        severity: "high",
+        message: `Low stock alert: ${item.category} (${item.quantity} units remaining)`,
+      });
+    }
+  });
+
+  // Check financial thresholds
+  const currentRevenue = calculateCurrentRevenue();
+  if (currentRevenue < getMinimumRevenueThreshold()) {
+    alerts.push({
+      type: "financial",
+      severity: "medium",
+      message: "Revenue below expected threshold for current period",
+    });
+  }
+
+  displaySystemAlerts(alerts);
+}
+
+function displaySystemAlerts(alerts) {
+  const alertContainer = document.getElementById("systemAlerts");
+  if (!alertContainer) return;
+
+  alertContainer.innerHTML = alerts
+    .map(
+      (alert) => `
+      <div class="alert alert-${alert.severity}">
+          <strong>${alert.type.toUpperCase()}:</strong> ${alert.message}
+      </div>
+  `
+    )
+    .join("");
+}
+
+// Helper functions
+function calculateCurrentRevenue() {
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+
+  return orders
+    .filter((order) => {
+      const orderDate = new Date(order.date);
+      return (
+        orderDate.getMonth() === currentMonth &&
+        orderDate.getFullYear() === currentYear
+      );
+    })
+    .reduce((sum, order) => sum + order.totalPrice, 0);
+}
+
+function getMinimumRevenueThreshold() {
+  // This could be made configurable
+  return 10000; // Example threshold
+}
+
+function checkReorderPoints() {
+  inventoryItems.forEach((item) => {
+    if (item.quantity <= item.reorderLevel) {
+      const alert = {
+        type: "inventory",
+        severity: "high",
+        message: `Reorder Alert: ${item.category} has reached reorder level`,
+      };
+      displaySystemAlerts([alert]);
+    }
+  });
+}
 /****************************************
  *  SUPPLIER MANAGEMENT
  ****************************************/
@@ -377,64 +533,109 @@ function addPurchaseRecord() {
   const totalCost = quantity * pricePerKg;
 
   const existing = purchases.find((p) => p.purchaseId === purchaseId);
+
   if (existing) {
-    if (!confirm(`Purchase ID '${purchaseId}' exists. Update record?`)) return;
+    // If updating an existing purchase, adjust inventory
+    const oldQuantity = existing.quantity;
+    const farmer = farmers.find((f) => f.farmerId === farmerId);
+
+    if (farmer) {
+      const inventoryItem = inventoryItems.find(
+        (i) => i.category === farmer.region
+      );
+
+      if (inventoryItem) {
+        // Subtract the old quantity
+        inventoryItem.quantity -= oldQuantity;
+        // Add the new quantity
+        inventoryItem.quantity += quantity;
+      }
+    }
+
+    // Update existing purchase
     Object.assign(existing, {
       farmerId,
       date,
       quantity,
       pricePerKg,
-      totalCost,
+      totalCost: quantity * pricePerKg,
     });
   } else {
+    // Add new purchase (existing code remains the same)
     purchases.push({
       purchaseId,
       farmerId,
       date,
       quantity,
       pricePerKg,
-      totalCost,
+      totalCost: quantity * pricePerKg,
+    });
+
+    // Get farmer's region (category)
+    const farmer = farmers.find((f) => f.farmerId === farmerId);
+    if (!farmer) {
+      alert(`Farmer ID '${farmerId}' not found.`);
+      return;
+    }
+
+    // Update Raw Inventory
+    updateRawInventoryAfterPurchase({
+      category: farmer.region,
+      quantity: quantity,
     });
   }
-
-  // Update Raw Inventory
-  updateRawInventoryAfterPurchase(farmerId, quantity);
 
   document.getElementById("purchaseForm").reset();
   savePurchases();
   renderPurchasesTable();
 }
 
-function updateRawInventoryAfterPurchase(farmerId, quantity) {
-  const farmer = farmers.find((f) => f.farmerId === farmerId);
-  if (!farmer) {
-    alert(`Farmer ID '${farmerId}' not found.`);
-    return;
-  }
+function updateRawInventoryAfterPurchase(purchaseData) {
+  const { category, quantity } = purchaseData;
 
-  const rawCategory = farmer.region; // Assuming region corresponds to raw category
+  let inventoryItem = inventoryItems.find((item) => item.category === category);
 
-  let inventoryItem = inventoryItems.find(
-    (i) => i.category.toLowerCase() === rawCategory.toLowerCase()
-  );
-
-  if (inventoryItem) {
-    inventoryItem.quantity += quantity;
-  } else {
-    inventoryItems.push({
+  if (!inventoryItem) {
+    inventoryItem = {
       itemId: generateUniqueId("RAW"),
-      category: rawCategory,
+      category: category,
       quantity: quantity,
-      reorderLevel: 10, // Default value; adjust as needed
+      reorderLevel: 10,
       restockDate: "",
-      storageLocation: "Default Warehouse",
-    });
+      storageLocation: "Main Warehouse",
+    };
+    inventoryItems.push(inventoryItem);
+  } else {
+    // Add to existing inventory
+    inventoryItem.quantity += quantity;
   }
+
+  console.log(`Updated inventory for ${category}:`, inventoryItem); // Debug log
 
   saveInventoryItems();
+  updateCategorySelections();
   renderInventoryTable();
   renderLowStockAlerts();
 }
+
+// function renderPurchasesTable() {
+//   const tbody = document.querySelector("#purchasesTable tbody");
+//   if (!tbody) return;
+//   tbody.innerHTML = "";
+
+//   purchases.forEach((p) => {
+//     const tr = document.createElement("tr");
+//     tr.innerHTML = `
+//       <td>${p.purchaseId}</td>
+//       <td>${p.farmerId}</td>
+//       <td>${p.date}</td>
+//       <td>${p.quantity.toFixed(2)}</td>
+//       <td>${p.pricePerKg.toFixed(2)}</td>
+//       <td>${p.totalCost.toFixed(2)}</td>
+//     `;
+//     tbody.appendChild(tr);
+//   });
+// }
 
 function renderPurchasesTable() {
   const tbody = document.querySelector("#purchasesTable tbody");
@@ -450,9 +651,63 @@ function renderPurchasesTable() {
       <td>${p.quantity.toFixed(2)}</td>
       <td>${p.pricePerKg.toFixed(2)}</td>
       <td>${p.totalCost.toFixed(2)}</td>
+      <td>
+        <button onclick="editPurchase('${p.purchaseId}')">Edit</button>
+        <button onclick="deletePurchase('${p.purchaseId}')">Delete</button>
+      </td>
     `;
     tbody.appendChild(tr);
   });
+}
+
+function editPurchase(purchaseId) {
+  const purchase = purchases.find((p) => p.purchaseId === purchaseId);
+  if (!purchase) return;
+
+  // Populate form with existing purchase details
+  document.getElementById("purchaseId").value = purchase.purchaseId;
+  document.getElementById("purchaseFarmerId").value = purchase.farmerId;
+  document.getElementById("purchaseDate").value = purchase.date;
+  document.getElementById("purchaseQuantity").value = purchase.quantity;
+  document.getElementById("purchasePrice").value = purchase.pricePerKg;
+}
+
+function deletePurchase(purchaseId) {
+  if (!confirm(`Are you sure you want to delete purchase ${purchaseId}?`))
+    return;
+
+  // Find the purchase to get its details for inventory adjustment
+  const purchaseToDelete = purchases.find((p) => p.purchaseId === purchaseId);
+
+  if (purchaseToDelete) {
+    // Reverse the inventory update
+    const farmer = farmers.find(
+      (f) => f.farmerId === purchaseToDelete.farmerId
+    );
+    if (farmer) {
+      // Find the inventory item for this farmer's region
+      const inventoryItem = inventoryItems.find(
+        (i) => i.category === farmer.region
+      );
+
+      if (inventoryItem) {
+        // Subtract the quantity from inventory
+        inventoryItem.quantity -= purchaseToDelete.quantity;
+
+        // Ensure quantity doesn't go negative
+        inventoryItem.quantity = Math.max(0, inventoryItem.quantity);
+      }
+    }
+  }
+
+  // Remove the purchase from the array
+  purchases = purchases.filter((p) => p.purchaseId !== purchaseId);
+
+  // Save and update UI
+  savePurchases();
+  renderPurchasesTable();
+  renderInventoryTable();
+  renderLowStockAlerts();
 }
 
 function exportPurchasesAsCsv() {
@@ -675,151 +930,143 @@ function packageBlueberries() {
     document.getElementById("packageQuantity").value
   );
 
-  // Validation Flags
-  let isValid = true;
-  let errorMsg = "";
+  try {
+    // Validate packaging request
+    if (
+      !rawCatSelect ||
+      !packagedCatSelect ||
+      isNaN(quantityKg) ||
+      quantityKg <= 0
+    ) {
+      throw new Error("Please fill in all fields with valid values");
+    }
 
-  // Validate Raw Category
-  if (!rawCatSelect) {
-    isValid = false;
-    errorMsg += "Raw Category is required.\n";
-  } else if (!inventoryItems.find((i) => i.category === rawCatSelect)) {
-    isValid = false;
-    errorMsg += "Selected Raw Category does not exist in inventory.\n";
-  }
-
-  // Validate Packaged Category
-  if (!packagedCatSelect) {
-    isValid = false;
-    errorMsg += "Packaged Category is required.\n";
-  } else if (!categoryPricing.find((c) => c.category === packagedCatSelect)) {
-    isValid = false;
-    errorMsg += "Selected Packaged Category does not exist.\n";
-  }
-
-  // Validate Quantity
-  if (isNaN(quantityKg)) {
-    isValid = false;
-    errorMsg += "Quantity must be a number.\n";
-  } else if (quantityKg <= 0) {
-    isValid = false;
-    errorMsg += "Quantity must be greater than zero.\n";
-  } else {
-    // Check sufficient raw inventory
     const rawInventoryItem = inventoryItems.find(
       (i) => i.category === rawCatSelect
     );
     if (!rawInventoryItem || rawInventoryItem.quantity < quantityKg) {
-      isValid = false;
-      errorMsg += `Insufficient raw inventory for category "${rawCatSelect}". Available: ${
-        rawInventoryItem ? rawInventoryItem.quantity : 0
-      } kg.\n`;
+      throw new Error(
+        `Insufficient raw inventory for ${rawCatSelect}. Available: ${
+          rawInventoryItem ? rawInventoryItem.quantity : 0
+        }kg`
+      );
     }
-  }
 
-  // If invalid, display errors
-  const errorDiv = document.getElementById("packageFormErrors");
-  if (errorDiv) errorDiv.textContent = "";
+    // Proceed with packaging
+    rawInventoryItem.quantity -= quantityKg;
 
-  if (!isValid) {
-    if (errorDiv) {
-      errorDiv.textContent =
-        "Please correct the following errors:\n" + errorMsg;
-    } else {
-      alert("Please correct the following errors:\n" + errorMsg);
-    }
-    return;
-  }
-
-  if (
-    !rawCatSelect ||
-    !packagedCatSelect ||
-    isNaN(quantityKg) ||
-    quantityKg <= 0
-  ) {
-    alert("All fields are required, and quantity must be greater than zero.");
-    return;
-  }
-
-  const rawInventoryItem = inventoryItems.find(
-    (i) => i.category.toLowerCase() === rawCatSelect.toLowerCase()
-  );
-  if (!rawInventoryItem) {
-    alert(`No raw inventory found for category "${rawCatSelect}".`);
-    return;
-  }
-
-  if (rawInventoryItem.quantity < quantityKg) {
-    alert(
-      `Insufficient raw inventory for category "${rawCatSelect}". Available: ${rawInventoryItem.quantity} kg.`
+    const packagedCatObj = categoryPricing.find(
+      (c) => c.category === packagedCatSelect
     );
-    return;
+    const packagedInvObj = packagedInventory.find(
+      (i) => i.category === packagedCatSelect
+    );
+
+    if (!packagedCatObj || !packagedInvObj) {
+      throw new Error("Invalid packaged category");
+    }
+
+    // Calculate units based on package weight
+    let unitWeight = parseFloat(packagedCatObj.weightInfo);
+    let unitsToAdd = Math.floor(quantityKg / unitWeight);
+
+    if (unitsToAdd <= 0) {
+      throw new Error("Quantity too low to form at least one unit");
+    }
+
+    // Update packaged inventory
+    packagedInvObj.units += unitsToAdd;
+    packagedInvObj.totalKg += quantityKg;
+
+    saveInventoryItems();
+    savePackagedInventory();
+
+    renderInventoryTable();
+    renderPackagedInventory();
+    renderLowStockAlerts();
+
+    document.getElementById("packageForm").reset();
+    alert(
+      `Packaged ${unitsToAdd} unit(s) of "${packagedCatSelect}" from "${rawCatSelect}".`
+    );
+  } catch (error) {
+    alert(error.message);
   }
-
-  // Deduct from raw inventory
-  rawInventoryItem.quantity -= quantityKg;
-
-  const packagedCatObj = categoryPricing.find(
-    (c) => c.category === packagedCatSelect
-  );
-  const packagedInvObj = packagedInventory.find(
-    (i) => i.category === packagedCatSelect
-  );
-
-  if (!packagedCatObj || !packagedInvObj) {
-    alert("Selected packaged category not found.");
-    return;
-  }
-
-  // Determine unit weight
-  let unitWeight = parseFloat(packagedCatObj.weightInfo);
-  let unitsToAdd;
-
-  if (isNaN(unitWeight)) {
-    // Handle "Varies"
-    unitsToAdd = 1; // Treat entire quantity as one unit
-    unitWeight = quantityKg;
-  } else {
-    unitsToAdd = Math.floor(quantityKg / unitWeight);
-  }
-
-  if (unitsToAdd <= 0) {
-    alert("Quantity too low to form at least one unit.");
-    return;
-  }
-
-  // Add to packaged inventory
-  packagedInvObj.units += unitsToAdd;
-  packagedInvObj.totalKg += unitsToAdd * unitWeight;
-
-  saveInventoryItems();
-  savePackagedInventory();
-
-  renderInventoryTable();
-  renderPackagedInventory();
-  renderLowStockAlerts();
-
-  alert(
-    `Packaged ${unitsToAdd} unit(s) of "${packagedCatSelect}" from "${rawCatSelect}".`
-  );
-  document.getElementById("packageForm").reset();
+}
+function initPackagedReorderLevels() {
+  packagedReorderLevels =
+    JSON.parse(localStorage.getItem("packagedReorderLevels")) || {};
+  // Set default values for any missing categories
+  categoryPricing.forEach((cat) => {
+    if (!(cat.category in packagedReorderLevels)) {
+      packagedReorderLevels[cat.category] = 10;
+    }
+  });
+  savePackagedReorderLevels();
 }
 
+function savePackagedReorderLevels() {
+  localStorage.setItem(
+    "packagedReorderLevels",
+    JSON.stringify(packagedReorderLevels)
+  );
+}
+
+// Modify the existing renderPackagedInventory function
 function renderPackagedInventory() {
   const tbody = document.querySelector("#packagedInventoryTable tbody");
   if (!tbody) return;
   tbody.innerHTML = "";
 
   packagedInventory.forEach((item) => {
+    const reorderLevel = packagedReorderLevels[item.category] || 10;
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${item.category}</td>
-      <td>${item.units}</td>
-      <td>${item.totalKg.toFixed(2)}</td>
-    `;
+          <td>${item.category}</td>
+          <td>${item.units}</td>
+          <td>${item.totalKg.toFixed(2)}</td>
+          <td>
+              <input type="number" 
+                  class="reorder-level-input" 
+                  value="${reorderLevel}" 
+                  min="1" 
+                  data-category="${item.category}"
+                  style="width: 70px; padding: 4px;">
+          </td>
+      `;
     tbody.appendChild(tr);
   });
+
+  // Add event listeners for the inputs
+  const inputs = tbody.querySelectorAll(".reorder-level-input");
+  inputs.forEach((input) => {
+    input.addEventListener("change", (e) => {
+      const category = e.target.dataset.category;
+      const value = parseInt(e.target.value);
+      if (value && value > 0) {
+        packagedReorderLevels[category] = value;
+        savePackagedReorderLevels();
+        renderLowStockAlertsPackaged();
+      }
+    });
+  });
 }
+
+// function renderPackagedInventory() {
+//   const tbody = document.querySelector("#packagedInventoryTable tbody");
+//   if (!tbody) return;
+//   tbody.innerHTML = "";
+
+//   packagedInventory.forEach((item) => {
+//     const tr = document.createElement("tr");
+//     tr.innerHTML = `
+//       <td>${item.category}</td>
+//       <td>${item.units}</td>
+//       <td>${item.totalKg.toFixed(2)}</td>
+//     `;
+//     tbody.appendChild(tr);
+//   });
+// }
 
 /****************************************
  *   SALES MANAGEMENT (Orders)
@@ -1175,35 +1422,337 @@ function initFinancialAnalysis() {
   }
 }
 
+// function analyzeFinancials() {
+//   const start = document.getElementById("finStart").value;
+//   const end = document.getElementById("finEnd").value;
+//   const taxMethod = document.getElementById("taxMethod").value;
+//   const allowDeductions = document.getElementById("allowDeductions").checked;
+//   const minimumThreshold =
+//     parseFloat(document.getElementById("minimumThreshold").value) || 1000;
+//   const manualTaxRate =
+//     parseFloat(document.getElementById("taxRate").value) || 10;
+
+//   // Calculate income
+//   let income = 0;
+//   orders.forEach((o) => {
+//     const orderDate = new Date(o.date);
+//     if (start && orderDate < new Date(start)) return;
+//     if (end && orderDate > new Date(end)) return;
+//     income += o.totalPrice;
+//   });
+
+//   // Calculate expenses
+//   let expense = 0;
+//   purchases.forEach((p) => {
+//     const purchaseDate = new Date(p.date);
+//     if (start && purchaseDate < new Date(start)) return;
+//     if (end && purchaseDate > new Date(end)) return;
+//     expense += p.totalCost;
+//   });
+
+//   // Calculate taxable income
+//   const taxableIncome = income - expense;
+
+//   // Calculate tax using the enhanced tax calculation
+//   const taxResults = enhancedTaxCalculation(taxableIncome, {
+//     taxMethod: taxMethod,
+//     allowDeductions: allowDeductions,
+//     minimumThreshold: minimumThreshold,
+//     manualTaxRate: manualTaxRate / 100, // Convert percentage to decimal
+//   });
+
+//   // Calculate net profit
+//   const netProfit = taxableIncome - taxResults.taxAmount;
+
+//   // Update displays
+//   document.getElementById("finIncomeDisplay").textContent = income.toFixed(2);
+//   document.getElementById("finExpenseDisplay").textContent = expense.toFixed(2);
+//   document.getElementById("finTaxDisplay").textContent =
+//     taxResults.taxAmount.toFixed(2);
+//   document.getElementById("finProfitDisplay").textContent =
+//     netProfit.toFixed(2);
+
+//   // Display additional tax information
+//   const taxDetailsDiv = document.getElementById("taxDetails");
+//   if (taxDetailsDiv) {
+//     taxDetailsDiv.innerHTML = `
+//           <h4>Detailed Tax Information</h4>
+//           <p>Total Income: $${income.toFixed(2)}</p>
+//           <p>Total Expenses: $${expense.toFixed(2)}</p>
+//           <p>Taxable Income: $${taxableIncome.toFixed(2)}</p>
+//           <p>Tax Method: ${
+//             taxMethod === "progressive" ? "Progressive" : "Standard Rate"
+//           }</p>
+//           <p>Tax Rate: ${manualTaxRate}%</p>
+//           <p>Tax Amount: $${taxResults.taxAmount.toFixed(2)}</p>
+//           <p>Effective Tax Rate: ${taxResults.effectiveRate.toFixed(2)}%</p>
+//       `;
+//   }
+
+//   updateDeductionsBreakdown();
+// }
+
+// function enhancedTaxCalculation(taxableIncome, options = {}) {
+//   const {
+//     taxMethod = "standard",
+//     allowDeductions = true,
+//     minimumThreshold = 1000,
+//     manualTaxRate = 0.1, // Default 10%
+//   } = options;
+
+//   // Ensure taxable income is not negative
+//   taxableIncome = Math.max(0, taxableIncome);
+
+//   // Check minimum threshold
+//   if (taxableIncome <= minimumThreshold) {
+//     return {
+//       taxAmount: 0,
+//       effectiveRate: 0,
+//       deductions: 0,
+//       taxableIncome,
+//     };
+//   }
+
+//   // Calculate tax based on method
+//   let taxAmount;
+//   if (taxMethod === "progressive") {
+//     taxAmount = calculateProgressiveTax(taxableIncome);
+//   } else {
+//     // Standard method uses manual tax rate
+//     taxAmount = taxableIncome * manualTaxRate;
+//   }
+
+//   // Calculate effective tax rate
+//   const effectiveRate = (taxAmount / taxableIncome) * 100;
+
+//   return {
+//     taxAmount,
+//     effectiveRate,
+//     deductions: 0,
+//     taxableIncome,
+//   };
+// }
+
+function enhancedTaxCalculation(taxableIncome, options = {}) {
+  const {
+    taxMethod = "standard",
+    allowDeductions = true,
+    minimumThreshold = 1000,
+    manualTaxRate = 0.1,
+  } = options;
+
+  // Determine financial status
+  const taxStatus =
+    taxableIncome < 0 ? "Loss" : taxableIncome === 0 ? "Break-even" : "Profit";
+
+  let taxAmount = 0;
+  let effectiveRate = 0;
+
+  // Only calculate tax if above minimum threshold and in profit
+  if (taxableIncome > minimumThreshold) {
+    if (taxMethod === "progressive") {
+      taxAmount = calculateProgressiveTax(taxableIncome);
+    } else {
+      // Standard method uses manual tax rate
+      taxAmount = taxableIncome * manualTaxRate;
+    }
+
+    // Prevent division by zero
+    effectiveRate = taxableIncome > 0 ? (taxAmount / taxableIncome) * 100 : 0;
+  }
+
+  return {
+    taxAmount,
+    effectiveRate,
+    deductions: 0,
+    taxableIncome,
+    taxStatus,
+  };
+}
+
 function analyzeFinancials() {
   const start = document.getElementById("finStart").value;
   const end = document.getElementById("finEnd").value;
-  const taxRate = parseFloat(document.getElementById("taxRate").value) || 0;
+  const taxMethod = document.getElementById("taxMethod").value;
+  const allowDeductions = document.getElementById("allowDeductions").checked;
+  const minimumThreshold =
+    parseFloat(document.getElementById("minimumThreshold").value) || 1000;
+  const manualTaxRate =
+    parseFloat(document.getElementById("taxRate").value) || 10;
 
-  let income = 0;
-  orders.forEach((o) => {
+  // Calculate income
+  let filteredOrders = orders.filter((o) => {
     const orderDate = new Date(o.date);
-    if (start && orderDate < new Date(start)) return;
-    if (end && orderDate > new Date(end)) return;
-    income += o.totalPrice;
+    const startDate = start ? new Date(start) : null;
+    const endDate = end ? new Date(end) : null;
+
+    return (
+      (!startDate || orderDate >= startDate) &&
+      (!endDate || orderDate <= endDate)
+    );
   });
 
-  let expense = 0;
-  purchases.forEach((p) => {
+  const income = filteredOrders.reduce(
+    (sum, order) => sum + order.totalPrice,
+    0
+  );
+
+  // Calculate expenses
+  let filteredPurchases = purchases.filter((p) => {
     const purchaseDate = new Date(p.date);
-    if (start && purchaseDate < new Date(start)) return;
-    if (end && purchaseDate > new Date(end)) return;
-    expense += p.totalCost;
+    const startDate = start ? new Date(start) : null;
+    const endDate = end ? new Date(end) : null;
+
+    return (
+      (!startDate || purchaseDate >= startDate) &&
+      (!endDate || purchaseDate <= endDate)
+    );
   });
 
-  const taxAmount = income * (taxRate / 100);
-  const netProfit = income - expense - taxAmount;
+  const expense = filteredPurchases.reduce(
+    (sum, purchase) => sum + purchase.totalCost,
+    0
+  );
 
+  // Calculate taxable income
+  const taxableIncome = income - expense;
+
+  // Calculate tax
+  const taxResults = enhancedTaxCalculation(taxableIncome, {
+    taxMethod,
+    allowDeductions,
+    minimumThreshold,
+    manualTaxRate: manualTaxRate / 100,
+  });
+
+  // Update display elements
   document.getElementById("finIncomeDisplay").textContent = income.toFixed(2);
   document.getElementById("finExpenseDisplay").textContent = expense.toFixed(2);
-  document.getElementById("finTaxDisplay").textContent = taxAmount.toFixed(2);
+  document.getElementById("finTaxDisplay").textContent =
+    taxResults.taxAmount.toFixed(2);
   document.getElementById("finProfitDisplay").textContent =
-    netProfit.toFixed(2);
+    taxableIncome.toFixed(2);
+
+  // Update tax details
+  const taxDetailsDiv = document.getElementById("taxDetails");
+  if (taxDetailsDiv) {
+    taxDetailsDiv.innerHTML = `
+      <h4>Detailed Financial Analysis</h4>
+      <p>Total Income: $${income.toFixed(2)}</p>
+      <p>Total Expenses: $${expense.toFixed(2)}</p>
+      <p>Taxable Income: $${taxableIncome.toFixed(2)}</p>
+      <p>Financial Status: ${taxResults.taxStatus}</p>
+      <p>Tax Method: ${
+        taxMethod === "progressive" ? "Progressive" : "Standard Rate"
+      }</p>
+      <p>Tax Amount: $${taxResults.taxAmount.toFixed(2)}</p>
+      <p>Effective Tax Rate: ${taxResults.effectiveRate.toFixed(2)}%</p>
+    `;
+  }
+
+  // Optional: Update deductions breakdown
+  updateDeductionsBreakdown();
+}
+
+function calculateProgressiveTax(income) {
+  const brackets = [
+    { threshold: 5000, rate: 0.05 }, // 5% up to $5,000
+    { threshold: 10000, rate: 0.1 }, // 10% from $5,001 to $10,000
+    { threshold: 20000, rate: 0.15 }, // 15% from $10,001 to $20,000
+    { threshold: Infinity, rate: 0.2 }, // 20% above $20,000
+  ];
+
+  let totalTax = 0;
+  let remainingIncome = income;
+  let previousThreshold = 0;
+
+  for (const bracket of brackets) {
+    const taxableInBracket = Math.min(
+      remainingIncome,
+      bracket.threshold - previousThreshold
+    );
+
+    if (taxableInBracket <= 0) break;
+
+    totalTax += taxableInBracket * bracket.rate;
+    remainingIncome -= taxableInBracket;
+    previousThreshold = bracket.threshold;
+  }
+
+  return totalTax;
+}
+function calculateConfidence(dataPoints, slope, intercept) {
+  // Simple R-squared calculation
+  const yMean =
+    dataPoints.reduce((sum, point) => sum + point.y, 0) / dataPoints.length;
+  const ssTotal = dataPoints.reduce(
+    (sum, point) => sum + Math.pow(point.y - yMean, 2),
+    0
+  );
+  const ssResidual = dataPoints.reduce((sum, point) => {
+    const predicted = slope * point.x + intercept;
+    return sum + Math.pow(point.y - predicted, 2);
+  }, 0);
+  return ssTotal === 0 ? 0 : 1 - ssResidual / ssTotal;
+}
+const TaxRates = {
+  STANDARD: 0.1,
+  REDUCED: 0.05,
+  SPECIAL: 0.15,
+};
+
+const DeductionTypes = {
+  OPERATIONAL: "operational",
+  CAPITAL: "capital",
+  INVENTORY: "inventory",
+};
+
+function calculateDeductions() {
+  let totalDeductions = 0;
+
+  // Operational expenses deduction
+  const operationalDeductions = purchases.reduce(
+    (sum, purchase) => sum + purchase.totalCost,
+    0
+  );
+  totalDeductions += operationalDeductions;
+
+  // Inventory depreciation deduction
+  const inventoryDeduction = calculateInventoryDepreciation();
+  totalDeductions += inventoryDeduction;
+
+  // Capital expenses deduction (if any)
+  const capitalDeduction = calculateCapitalDeductions();
+  totalDeductions += capitalDeduction;
+
+  return totalDeductions;
+}
+
+function initTaxRateValidation() {
+  const taxRateInput = document.getElementById("taxRate");
+  if (taxRateInput) {
+    taxRateInput.addEventListener("input", function () {
+      const value = parseFloat(this.value);
+      if (isNaN(value) || value < 0 || value > 100) {
+        this.setCustomValidity("Tax rate must be between 0 and 100");
+      } else {
+        this.setCustomValidity("");
+      }
+    });
+  }
+}
+
+function calculateInventoryDepreciation() {
+  return inventoryItems.reduce((total, item) => {
+    // Calculate depreciation based on storage time
+    const depreciation = item.quantity * 0.1; // 10% depreciation rate
+    return total + depreciation;
+  }, 0);
+}
+
+function calculateCapitalDeductions() {
+  // This could be expanded based on business requirements
+  return 0;
 }
 
 /****************************************
@@ -1218,13 +1767,68 @@ function initInventoryManagementModule() {
     });
   }
 
+  // Initialize categories based on farmers' regions
+  initializeCategories();
+
   const exportBtn = document.getElementById("exportInventoryCsv");
   if (exportBtn) {
     exportBtn.addEventListener("click", exportInventoryCsv);
   }
 }
 
+function initializeCategories() {
+  // Get unique categories from farmers' regions
+  const uniqueCategories = [...new Set(farmers.map((farmer) => farmer.region))];
+
+  // Ensure each category has an inventory entry
+  uniqueCategories.forEach((category) => {
+    const existingItem = inventoryItems.find(
+      (item) => item.category === category
+    );
+    if (!existingItem) {
+      inventoryItems.push({
+        itemId: generateUniqueId("RAW"),
+        category: category,
+        quantity: 0,
+        reorderLevel: 10,
+        restockDate: "",
+        storageLocation: "Main Warehouse",
+      });
+    }
+  });
+
+  saveInventoryItems();
+  updateCategorySelections();
+}
+
+function updateCategorySelections() {
+  // Update all category dropdowns in the application
+  const categoryDropdowns = ["packagingRawCategory", "invCategory"];
+
+  const categories = [...new Set(inventoryItems.map((item) => item.category))];
+
+  categoryDropdowns.forEach((dropdownId) => {
+    const dropdown = document.getElementById(dropdownId);
+    if (dropdown) {
+      const currentValue = dropdown.value;
+      dropdown.innerHTML = '<option value="">-- Select Category --</option>';
+
+      categories.forEach((category) => {
+        const option = document.createElement("option");
+        option.value = category;
+        option.textContent = category;
+        dropdown.appendChild(option);
+      });
+
+      if (currentValue && categories.includes(currentValue)) {
+        dropdown.value = currentValue;
+      }
+    }
+  });
+}
+
 function addOrUpdateInventoryItem() {
+  // Collect form values
   const itemId = document.getElementById("invItemId").value.trim();
   const category = document.getElementById("invCategory").value.trim();
   const quantity = parseFloat(document.getElementById("invQuantity").value);
@@ -1239,6 +1843,8 @@ function addOrUpdateInventoryItem() {
   // Validation Flags
   let isValid = true;
   let errorMsg = "";
+  const errorDiv = document.getElementById("inventoryFormErrors");
+  errorDiv.textContent = ""; // Clear previous errors
 
   // Validate Item ID
   if (!itemId) {
@@ -1247,21 +1853,18 @@ function addOrUpdateInventoryItem() {
   } else if (!/^[a-zA-Z0-9]+$/.test(itemId)) {
     isValid = false;
     errorMsg += "Item ID must be alphanumeric.\n";
-  } else {
-    const existingItem = inventoryItems.find((i) => i.itemId === itemId);
-    if (!existingItem) {
-      // If adding new, ensure uniqueness
-      // Assuming update allows existing Item IDs
-    }
+  } else if (inventoryItems.some((i) => i.itemId === itemId)) {
+    isValid = false;
+    errorMsg += "Item ID must be unique.\n";
   }
 
   // Validate Category
   if (!category) {
     isValid = false;
     errorMsg += "Category is required.\n";
-  } else if (!categoryPricing.find((c) => c.category === category)) {
+  } else if (!/^[a-zA-Z\s]+$/.test(category)) {
     isValid = false;
-    errorMsg += "Selected category does not exist.\n";
+    errorMsg += "Category must contain only letters and spaces.\n";
   }
 
   // Validate Quantity
@@ -1282,12 +1885,13 @@ function addOrUpdateInventoryItem() {
     errorMsg += "Reorder Level cannot be negative.\n";
   }
 
-  // Validate Restock Date
+  // Validate Restock Date (optional, but if provided, should not be in the past)
   if (restockDate) {
-    const rDate = new Date(restockDate);
+    const selectedDate = new Date(restockDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    if (rDate < today) {
+
+    if (selectedDate < today) {
       isValid = false;
       errorMsg += "Restock Date cannot be in the past.\n";
     }
@@ -1297,54 +1901,60 @@ function addOrUpdateInventoryItem() {
   if (!storageLocation) {
     isValid = false;
     errorMsg += "Storage Location is required.\n";
-  } else if (!/^[a-zA-Z0-9\s]+$/.test(storageLocation)) {
+  } else if (storageLocation.length < 3) {
     isValid = false;
-    errorMsg += "Storage Location must be alphanumeric.\n";
+    errorMsg += "Storage Location must be at least 3 characters long.\n";
   }
 
-  // If invalid, display errors
-  const errorDiv = document.getElementById("inventoryFormErrors");
-  if (errorDiv) errorDiv.textContent = "";
-
+  // Display errors if validation fails
   if (!isValid) {
-    if (errorDiv) {
-      errorDiv.textContent =
-        "Please correct the following errors:\n" + errorMsg;
-    } else {
-      alert("Please correct the following errors:\n" + errorMsg);
-    }
+    errorDiv.textContent = errorMsg;
     return;
   }
 
-  if (!itemId || !category || isNaN(quantity) || isNaN(reorderLevel)) {
-    alert("All fields are required and must be valid.");
-    return;
-  }
-
+  // Find existing inventory item
   const existing = inventoryItems.find((i) => i.itemId === itemId);
+
   if (existing) {
-    Object.assign(existing, {
-      category,
-      quantity,
-      reorderLevel,
-      restockDate,
-      storageLocation,
-    });
+    // Update existing item
+    if (
+      confirm(
+        `Inventory item ${itemId} already exists. Do you want to update its information?`
+      )
+    ) {
+      // Preserve the original quantity when updating
+      existing.category = category;
+      existing.reorderLevel = reorderLevel;
+      existing.restockDate = restockDate;
+      existing.storageLocation = storageLocation;
+
+      alert(`Inventory item ${itemId} updated successfully.`);
+    } else {
+      return;
+    }
   } else {
-    inventoryItems.push({
+    // Create new inventory item
+    const newItem = {
       itemId,
       category,
-      quantity,
+      quantity: quantity, // Use the entered quantity
       reorderLevel,
       restockDate,
-      storageLocation,
-    });
+      storageLocation: storageLocation || "Main Warehouse",
+    };
+
+    inventoryItems.push(newItem);
+    alert(`New inventory item ${itemId} added successfully.`);
   }
 
-  document.getElementById("inventoryForm").reset();
+  // Save and update UI
   saveInventoryItems();
   renderInventoryTable();
   renderLowStockAlerts();
+  updateCategorySelections();
+
+  // Reset the form
+  document.getElementById("inventoryForm").reset();
 }
 
 function renderInventoryTable() {
@@ -1355,17 +1965,21 @@ function renderInventoryTable() {
   inventoryItems.forEach((item) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${item.itemId}</td>
-      <td>${item.category}</td>
-      <td>${item.quantity.toFixed(2)}</td>
-      <td>${item.reorderLevel.toFixed(2)}</td>
-      <td>${item.restockDate || ""}</td>
-      <td>${item.storageLocation}</td>
-      <td>
-        <button onclick="editInventoryItem('${item.itemId}')">Edit</button>
-        <button onclick="deleteInventoryItem('${item.itemId}')">Delete</button>
-      </td>
-    `;
+          <td>${item.itemId}</td>
+          <td>${item.category}</td>
+          <td>${item.quantity.toFixed(2)}</td>
+          <td>${item.reorderLevel.toFixed(2)}</td>
+          <td>${item.restockDate || ""}</td>
+          <td>${item.storageLocation}</td>
+          <td>
+              <button onclick="editInventoryItem('${
+                item.itemId
+              }')">Edit</button>
+              <button onclick="deleteInventoryItem('${
+                item.itemId
+              }')">Delete</button>
+          </td>
+      `;
     tbody.appendChild(tr);
   });
 
@@ -1425,18 +2039,32 @@ function renderLowStockAlerts() {
   renderLowStockAlertsPackaged();
 }
 
+// function renderLowStockAlertsPackaged() {
+//   const alertUl = document.getElementById("lowStockAlertsPackaged");
+//   if (!alertUl) return;
+//   alertUl.innerHTML = "";
+
+//   // Define a reorder threshold for packaged inventory, e.g., 10 units
+//   const reorderThreshold = 10;
+
+//   packagedInventory.forEach((pi) => {
+//     if (pi.units < reorderThreshold) {
+//       const li = document.createElement("li");
+//       li.textContent = `${pi.category} is below ${reorderThreshold} units!`;
+//       alertUl.appendChild(li);
+//     }
+//   });
+// }
 function renderLowStockAlertsPackaged() {
   const alertUl = document.getElementById("lowStockAlertsPackaged");
   if (!alertUl) return;
   alertUl.innerHTML = "";
 
-  // Define a reorder threshold for packaged inventory, e.g., 10 units
-  const reorderThreshold = 10;
-
   packagedInventory.forEach((pi) => {
-    if (pi.units < reorderThreshold) {
+    const reorderLevel = packagedReorderLevels[pi.category] || 10;
+    if (pi.units < reorderLevel) {
       const li = document.createElement("li");
-      li.textContent = `${pi.category} is below ${reorderThreshold} units!`;
+      li.textContent = `${pi.category} is below ${reorderLevel} units!`;
       alertUl.appendChild(li);
     }
   });
@@ -1613,6 +2241,148 @@ function forecastDemand() {
     recommendations || "<p>No sales data available for forecasting.</p>";
 }
 
+// Add to app.js after the existing forecasting code
+
+function calculateSeasonalFactors(orderData) {
+  const monthlyTotals = {};
+  const seasonalFactors = {};
+
+  orderData.forEach((order) => {
+    const orderDate = new Date(order.date);
+    const monthKey = orderDate.getMonth();
+
+    if (!monthlyTotals[monthKey]) {
+      monthlyTotals[monthKey] = {
+        totalQuantity: 0,
+        count: 0,
+      };
+    }
+
+    monthlyTotals[monthKey].totalQuantity += order.quantity;
+    monthlyTotals[monthKey].count++;
+  });
+
+  // Calculate average for each month
+  Object.keys(monthlyTotals).forEach((month) => {
+    seasonalFactors[month] =
+      monthlyTotals[month].totalQuantity / monthlyTotals[month].count;
+  });
+
+  return seasonalFactors;
+}
+
+function enhancedDemandForecast() {
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+  const relevantOrders = orders.filter(
+    (order) => new Date(order.date) >= ninetyDaysAgo
+  );
+
+  const seasonalFactors = calculateSeasonalFactors(orders);
+  const categoryTrends = {};
+
+  // Calculate trends by category
+  categoryPricing.forEach((category) => {
+    const categoryOrders = relevantOrders.filter(
+      (order) => order.category === category.category
+    );
+
+    const trend = calculateCategoryTrend(categoryOrders);
+    categoryTrends[category.category] = trend;
+  });
+
+  // Generate predictions
+  const predictions = generatePredictions(categoryTrends, seasonalFactors);
+
+  // Update the forecast display
+  updateForecastDisplay(predictions);
+
+  return predictions;
+}
+
+function calculateCategoryTrend(categoryOrders) {
+  if (categoryOrders.length < 2) return { slope: 0, confidence: 0 };
+
+  const dataPoints = categoryOrders.map((order, index) => ({
+    x: index,
+    y: order.quantity,
+  }));
+
+  // Simple linear regression
+  const n = dataPoints.length;
+  const sumX = dataPoints.reduce((sum, point) => sum + point.x, 0);
+  const sumY = dataPoints.reduce((sum, point) => sum + point.y, 0);
+  const sumXY = dataPoints.reduce((sum, point) => sum + point.x * point.y, 0);
+  const sumXX = dataPoints.reduce((sum, point) => sum + point.x * point.x, 0);
+
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / n;
+
+  return {
+    slope,
+    intercept,
+    confidence: calculateConfidence(dataPoints, slope, intercept),
+  };
+}
+
+function generatePredictions(trends, seasonalFactors) {
+  const predictions = {};
+  const currentMonth = new Date().getMonth();
+
+  Object.keys(trends).forEach((category) => {
+    const trend = trends[category];
+    const seasonalFactor = seasonalFactors[currentMonth] || 1;
+
+    const baselinePrediction = trend.intercept + trend.slope * 90; // 90 days forecast
+    const seasonallyAdjusted = baselinePrediction * seasonalFactor;
+
+    predictions[category] = {
+      predicted: Math.max(0, Math.round(seasonallyAdjusted)),
+      confidence: trend.confidence,
+      trend:
+        trend.slope > 0
+          ? "Increasing"
+          : trend.slope < 0
+          ? "Decreasing"
+          : "Stable",
+    };
+  });
+
+  return predictions;
+}
+
+function updateForecastDisplay(predictions) {
+  const forecastOutput = document.getElementById("forecastOutput");
+  if (!forecastOutput) return;
+
+  let html = "<h3>Enhanced Demand Forecast (90-Day Outlook)</h3>";
+
+  Object.entries(predictions).forEach(([category, prediction]) => {
+    const confidenceLevel =
+      prediction.confidence > 0.7
+        ? "High"
+        : prediction.confidence > 0.4
+        ? "Medium"
+        : "Low";
+
+    html += `
+          <div class="forecast-card">
+              <h4>${category}</h4>
+              <p>Predicted Demand: ${prediction.predicted} units</p>
+              <p>Trend: ${prediction.trend}</p>
+              <p>Confidence Level: ${confidenceLevel}</p>
+          </div>
+      `;
+  });
+
+  forecastOutput.innerHTML = html;
+}
+
+// Update the event listener
+document
+  .getElementById("forecastDemandBtn")
+  ?.addEventListener("click", enhancedDemandForecast);
 /****************************************
  *  INITIALIZATION FUNCTIONS
  ****************************************/
@@ -1632,6 +2402,9 @@ window.addEventListener("DOMContentLoaded", () => {
   initInventoryManagementModule();
   initComprehensiveReportModule();
   initForecastingSectionModule();
+  initEnhancedFinancialAnalysis();
+  initPackagedReorderLevels();
+  initTaxRateValidation();
 
   // Render initial tables
   renderFarmersTable();
@@ -1641,4 +2414,257 @@ window.addEventListener("DOMContentLoaded", () => {
   renderPricingTable();
   renderPackagedInventory();
   recalcTotalRevenue();
+  renderLowStockAlertsPackaged();
 });
+
+// Dashboard functionality
+function initDashboard() {
+  updateDashboardStats();
+  initCharts();
+  updateRecentActivity();
+
+  // Refresh dashboard every 30 seconds
+  setInterval(updateDashboardStats, 30000);
+}
+
+function updateDashboardStats() {
+  // Load data from localStorage
+  const orders = JSON.parse(localStorage.getItem("orders")) || [];
+  const farmers = JSON.parse(localStorage.getItem("farmers")) || [];
+  const inventoryItems =
+    JSON.parse(localStorage.getItem("inventoryItems")) || [];
+
+  // Calculate stats
+  const totalRevenue = orders.reduce(
+    (sum, order) => sum + (order.totalPrice || 0),
+    0
+  );
+  const activeOrders = orders.filter(
+    (order) => order.status === "Pending"
+  ).length;
+  const lowStockItems = inventoryItems.filter(
+    (item) => item.quantity < item.reorderLevel
+  ).length;
+
+  // Update DOM
+  document.getElementById(
+    "dashboardRevenue"
+  ).textContent = `$${totalRevenue.toFixed(2)}`;
+  document.getElementById("dashboardOrders").textContent = activeOrders;
+  document.getElementById("dashboardLowStock").textContent = lowStockItems;
+  document.getElementById("dashboardSuppliers").textContent = farmers.length;
+}
+
+function initCharts() {
+  initSalesChart();
+  initInventoryChart();
+}
+
+function initSalesChart() {
+  const ctx = document.getElementById("salesChart").getContext("2d");
+  const categoryPricing =
+    JSON.parse(localStorage.getItem("categoryPricing")) || [];
+  const packagedInventory =
+    JSON.parse(localStorage.getItem("packagedInventory")) || [];
+
+  const data = {
+    labels: categoryPricing.map((cat) => cat.category),
+    datasets: [
+      {
+        label: "Units Sold",
+        data: categoryPricing.map((cat) => {
+          const packaged = packagedInventory.find(
+            (p) => p.category === cat.category
+          );
+          return packaged ? packaged.units : 0;
+        }),
+        backgroundColor: "#3b82f6",
+      },
+    ],
+  };
+
+  new Chart(ctx, {
+    type: "bar",
+    data: data,
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: "top",
+        },
+        title: {
+          display: true,
+          text: "Sales by Category",
+        },
+      },
+    },
+  });
+}
+
+function initInventoryChart() {
+  const ctx = document.getElementById("inventoryChart").getContext("2d");
+  const inventoryItems =
+    JSON.parse(localStorage.getItem("inventoryItems")) || [];
+
+  const data = {
+    labels: inventoryItems.map((item) => item.category),
+    datasets: [
+      {
+        label: "Current Stock (kg)",
+        data: inventoryItems.map((item) => item.quantity),
+        backgroundColor: "#10b981",
+      },
+    ],
+  };
+
+  new Chart(ctx, {
+    type: "doughnut",
+    data: data,
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: "top",
+        },
+      },
+    },
+  });
+}
+
+function updateRecentActivity() {
+  const activityList = document.getElementById("recentActivity");
+  const orders = JSON.parse(localStorage.getItem("orders")) || [];
+  const recentOrders = orders.slice(-5).reverse(); // Get last 5 orders
+
+  activityList.innerHTML = recentOrders
+    .map(
+      (order) => `
+      <div class="activity-item">
+          <div class="activity-icon">🛍️</div>
+          <div>
+              <strong>${order.customerName}</strong>
+              <p>Ordered ${order.quantity} units of ${order.category}</p>
+              <small>${new Date(order.date).toLocaleDateString()}</small>
+          </div>
+      </div>
+  `
+    )
+    .join("");
+}
+
+// Initialize dashboard when DOM is loaded
+document.addEventListener("DOMContentLoaded", () => {
+  if (document.getElementById("dashboard")) {
+    initDashboard();
+  }
+});
+
+// Add to app.js in the initialization section
+
+function initEnhancedFinancialAnalysis() {
+  // Add event listeners for tax settings
+  document
+    .getElementById("taxMethod")
+    ?.addEventListener("change", analyzeFinancials);
+  document
+    .getElementById("allowDeductions")
+    ?.addEventListener("change", analyzeFinancials);
+  document
+    .getElementById("minimumThreshold")
+    ?.addEventListener("change", analyzeFinancials);
+
+  // Initialize breakdown display
+  updateDeductionsBreakdown();
+}
+
+function updateDeductionsBreakdown() {
+  const breakdownDiv = document.getElementById("deductionsBreakdown");
+  if (!breakdownDiv) return;
+
+  const deductions = {
+    operational: calculateOperationalDeductions(),
+    inventory: calculateInventoryDepreciation(),
+    capital: calculateCapitalDeductions(),
+  };
+
+  const total = Object.values(deductions).reduce((sum, val) => sum + val, 0);
+
+  breakdownDiv.innerHTML = `
+      <h4>Deductions Breakdown</h4>
+      <ul>
+          <li>
+              <span>Operational Expenses:</span>
+              <span>$${deductions.operational.toFixed(2)}</span>
+          </li>
+          <li>
+              <span>Inventory Depreciation:</span>
+              <span>$${deductions.inventory.toFixed(2)}</span>
+          </li>
+          <li>
+              <span>Capital Expenses:</span>
+              <span>$${deductions.capital.toFixed(2)}</span>
+          </li>
+          <li class="total">
+              <strong>Total Deductions:</strong>
+              <strong>$${total.toFixed(2)}</strong>
+          </li>
+      </ul>
+  `;
+}
+
+// Add this to the existing window.addEventListener('DOMContentLoaded', ...) block
+function calculateOperationalDeductions() {
+  // Calculate operational expenses from purchases
+  const operationalDeductions = purchases.reduce((total, purchase) => {
+    // You can customize the calculation logic here
+    // For example, consider different types of operational expenses
+    return total + purchase.totalCost;
+  }, 0);
+
+  // Optionally, apply a cap or additional logic to operational deductions
+  const MAX_OPERATIONAL_DEDUCTION = 50000; // Example cap
+  return Math.min(operationalDeductions, MAX_OPERATIONAL_DEDUCTION);
+}
+
+function clearLocalStorage() {
+  // Confirm before clearing
+  if (
+    confirm("Are you sure you want to clear ALL data? This cannot be undone.")
+  ) {
+    // Clear all local storage
+    localStorage.clear();
+
+    // Reset global data arrays
+    farmers = [];
+    purchases = [];
+    orders = [];
+    inventoryItems = [];
+    categoryPricing = [
+      { category: "Small (100g)", weightInfo: "0.1 kg", price: 5 },
+      { category: "Medium (250g)", weightInfo: "0.25 kg", price: 10 },
+      { category: "Large (500g)", weightInfo: "0.5 kg", price: 18 },
+      { category: "Extra Large (1kg)", weightInfo: "1.0 kg", price: 30 },
+      { category: "Family Pack (2kg)", weightInfo: "2.0 kg", price: 55 },
+      { category: "Bulk Pack (5kg)", weightInfo: "5.0 kg", price: 120 },
+      { category: "Premium (custom)", weightInfo: "Varies", price: 0 },
+    ];
+    packagedInventory = categoryPricing.map((cat) => ({
+      category: cat.category,
+      units: 0,
+      totalKg: 0,
+    }));
+
+    // Re-render all tables and sections
+    renderFarmersTable();
+    renderPurchasesTable();
+    renderOrdersTable();
+    renderInventoryTable();
+    renderPricingTable();
+    renderPackagedInventory();
+    recalcTotalRevenue();
+    renderLowStockAlertsPackaged();
+
+    // Alert user
+    alert("All data has been cleared. The system has been reset to default.");
+  }
+}
